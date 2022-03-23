@@ -1,7 +1,6 @@
 name: Publish Android Bindings
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build_publish:
@@ -16,4 +15,3 @@ jobs:
         working-directory: ./android-bindings
         run: |
           make ci
-

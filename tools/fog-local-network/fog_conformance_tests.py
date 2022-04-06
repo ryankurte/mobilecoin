@@ -377,6 +377,8 @@ class FogConformanceTest:
 
         log_and_run_shell(f"cd {PROJECT_DIR} && CONSENSUS_ENCLAVE_PRIVKEY={enclave_pem} INGEST_ENCLAVE_PRIVKEY={enclave_pem} LEDGER_ENCLAVE_PRIVKEY={enclave_pem} VIEW_ENCLAVE_PRIVKEY={enclave_pem} exec cargo build -p mc-util-keyfile -p mc-admin-http-gateway -p mc-crypto-x509-test-vectors -p mc-fog-view-server -p mc-fog-ledger-server -p mc-fog-ingest-server -p mc-fog-report-server -p mc-fog-report-cli -p mc-fog-ingest-client -p mc-fog-sql-recovery-db -p mc-fog-sample-paykit -p mc-fog-test-infra  -p mc-consensus-mint-client -p mc-util-seeded-ed25519-key-gen {flags}")
 
+        log_and_run_shell("env; pwd; ls target; ls target/*; ")
+
     def __init__(self, work_dir, args):
         self.release = args.release
         self.target_dir = target_dir(self.release)

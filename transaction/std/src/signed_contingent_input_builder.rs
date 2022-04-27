@@ -1793,8 +1793,8 @@ pub mod tests {
     }
 
     #[test]
-    // Test that if you delete the rules from a signed contingent input, it fails
-    // with a ring signature error
+    // Test that if you delete the required ouptut from a signed contingent input,
+    // it fails with a ring signature error
     fn test_contingent_input_rules_modifying_required_output_rules_doesnt_work() {
         let mut rng: StdRng = SeedableRng::from_seed([1u8; 32]);
 
@@ -1861,6 +1861,124 @@ pub mod tests {
             assert_matches!(
                 sci.validate(),
                 Err(SignedContingentInputError::RingSignature(_))
+            );
+
+            let mut builder = TransactionBuilder::new(
+                block_version,
+                Amount::new(Mob::MINIMUM_FEE, Mob::ID),
+                fog_resolver.clone(),
+                EmptyMemoBuilder::default(),
+            )
+            .unwrap();
+
+            // Bob adds the presigned input (raw), without adding required outputs
+            builder.add_presigned_input_raw(sci);
+
+            // Bob adds the token id 2 amount that alice requests
+            builder.add_input(get_input_credentials(
+                block_version,
+                amount2,
+                &bob,
+                &fog_resolver,
+                &mut rng,
+            ));
+
+            // Bob gives the value that alice requests (note, it's not the same output
+            // actually)
+            builder
+                .add_output(amount2, &alice.default_subaddress(), &mut rng)
+                .unwrap();
+
+            // Bob keeps the Mob that Alice supplies, less fees
+            builder
+                .add_output(
+                    Amount::new(value - Mob::MINIMUM_FEE, Mob::ID),
+                    &bob.default_subaddress(),
+                    &mut rng,
+                )
+                .unwrap();
+
+            builder.set_tombstone_block(1000);
+
+            // The transaction is balanced, so this should build
+            let tx = builder.build(&mut rng).unwrap();
+
+            assert_eq!(tx.prefix.tombstone_block, 1000);
+
+            // tx does pass input rule checks (we deleted the rules)
+            validate_all_input_rules(block_version, &tx).unwrap();
+            // tx fails signature check (one signature is over the rules we deleted)
+            assert_matches!(
+                validate_signature(block_version, &tx, &mut rng),
+                Err(TransactionValidationError::InvalidTransactionSignature(_))
+            );
+        }
+    }
+
+    #[test]
+    // Test that if you delete the input rules entirely from a signed contingent
+    // input, it fails with a ring signature error
+    fn test_contingent_input_rules_deleting_all_input_rules_doesnt_work() {
+        let mut rng: StdRng = SeedableRng::from_seed([1u8; 32]);
+
+        for block_version in 3..=*BlockVersion::MAX {
+            let block_version = BlockVersion::try_from(block_version).unwrap();
+
+            let alice = AccountKey::random_with_fog(&mut rng);
+            let bob = AccountKey::random(&mut rng);
+            let ingest_private_key = RistrettoPrivate::from_random(&mut rng);
+
+            let fog_resolver = MockFogResolver(btreemap! {
+                                alice
+                        .default_subaddress()
+                        .fog_report_url()
+                        .unwrap()
+                        .to_string()
+                =>
+                    FullyValidatedFogPubkey {
+                        pubkey: RistrettoPublic::from(&ingest_private_key),
+                        pubkey_expiry: 1000,
+                    },
+            });
+
+            let value = 1475 * MILLIMOB_TO_PICOMOB;
+            let amount = Amount::new(value, Mob::ID);
+            let token2 = TokenId::from(2);
+            let amount2 = Amount::new(100_000, token2);
+
+            // Alice provides amount of Mob
+            let input_credentials =
+                get_input_credentials(block_version, amount, &alice, &fog_resolver, &mut rng);
+
+            let key_image = KeyImage::from(&input_credentials.input_secret.onetime_private_key);
+
+            let mut builder = SignedContingentInputBuilder::new(
+                block_version,
+                input_credentials,
+                vec![3],
+                fog_resolver.clone(),
+                EmptyMemoBuilder::default(),
+            );
+
+            // Alice requests amount2 worth of token id 2 in exchange
+            let (_txout, _confirmation) = builder
+                .add_output(amount2, &alice.default_subaddress(), &mut rng)
+                .unwrap();
+
+            let mut sci = builder.build(&mut rng).unwrap();
+
+            // The contingent input should have a valid signature.
+            sci.validate().unwrap();
+            assert_eq!(sci.key_image(), key_image);
+
+            // Now we modify it to remove the input rules entirely
+            sci.tx_in.input_rules = None;
+
+            // (Sanity check: the sci fails its own validation now, because the rules are
+            // missing)
+            assert_matches!(
+                sci.validate(),
+                Err(SignedContingentInputError::MissingRules)
             );
 
             let mut builder = TransactionBuilder::new(

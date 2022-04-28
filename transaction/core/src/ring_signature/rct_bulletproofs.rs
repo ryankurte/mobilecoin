@@ -429,11 +429,11 @@ impl SignatureRctBulletproofs {
 
         // Each MLSAG must be valid.
         for (i, ring) in rings.iter().enumerate() {
-            let mut rules_digest = [0u8; 32];
-            if let Some(rules) = &ring.input_rules {
-                rules_digest
-                    .copy_from_slice(&rules.digest32::<MerlinTranscript>(b"mc-input-rules")[..]);
-            }
+            let rules_digest = ring
+                .input_rules
+                .as_ref()
+                .map(|rules| rules.digest())
+                .unwrap_or_default();
 
             // If there are input rules, then the signature is over the rules digest
             // If not, then it is the entire extended message digest

@@ -445,7 +445,7 @@ impl SignatureRctBulletproofs {
 
             let ring_signature = &self.ring_signatures[i];
             let pseudo_output = self.pseudo_output_commitments[i];
-            ring_signature.verify(&this_was_signed, &ring.members, &pseudo_output)?;
+            ring_signature.verify(this_was_signed, &ring.members, &pseudo_output)?;
         }
 
         // Signature is valid.

@@ -78,7 +78,7 @@ impl SignedContingentInput {
         let pseudo_output = CompressedCommitment::from(&Commitment::new(
             self.pseudo_output_amount.value,
             self.pseudo_output_amount.blinding.into(),
-            &generator,
+            generator,
         ));
 
         let rules_digest = self
@@ -108,7 +108,7 @@ impl SignedContingentInput {
                 let expected_commitment = CompressedCommitment::from(&Commitment::new(
                     amount.value,
                     amount.blinding.into(),
-                    &generator,
+                    generator,
                 ));
                 if expected_commitment != output.masked_amount.commitment {
                     return Err(SignedContingentInputError::RequiredOutputMismatch);

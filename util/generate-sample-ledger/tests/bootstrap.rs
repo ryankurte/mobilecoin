@@ -23,6 +23,13 @@ fn test_exercise_bootstrap() {
     let bin = me.parent().unwrap().parent().unwrap();
     println!("bin = {:?}", bin);
 
+    println!("Building deps");
+    assert!(Command::new("cargo")
+        .args(["build", "-p", "mc-util-keyfile", "--bin", "sample-keys"])
+        .status()
+        .expect("cargo build mc-util-keyfile")
+        .success());
+
     let dir = TempDir::new().unwrap();
     set_current_dir(dir.path()).unwrap();
     println!("dir = {:?}", dir);
@@ -30,12 +37,12 @@ fn test_exercise_bootstrap() {
     assert!(Command::new(bin.join("sample-keys"))
         .args(["--num", "5"])
         .status()
-        .unwrap()
+        .expect("sample-keys")
         .success());
 
     assert!(Command::new(bin.join("generate-sample-ledger"))
         .args(["--txs", "10"])
         .status()
-        .unwrap()
+        .expect("generate-sample-ledger")
         .success());
 }

@@ -15,6 +15,20 @@ fn test_find_spendable_tx_outs() {
     let bin = me.parent().unwrap().parent().unwrap();
     println!("bin = {:?}", bin);
 
+    println!("Building deps");
+    assert!(Command::new("cargo")
+        .args([
+            "build",
+            "-p",
+            "mc-util-keyfile",
+            "-p",
+            "mc-util-sample-ledger",
+            "--bins",
+        ])
+        .status()
+        .expect("cargo build deps")
+        .success());
+
     let dir = TempDir::new().unwrap();
     set_current_dir(dir.path()).unwrap();
     println!("dir = {:?}", dir);
@@ -27,19 +41,19 @@ fn test_find_spendable_tx_outs() {
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         ])
         .status()
-        .unwrap()
+        .expect("sample-keys")
         .success());
 
     assert!(Command::new(bin.join("generate-sample-ledger"))
         .args(["--txs", "10", "--max-token-id", "1"])
         .status()
-        .unwrap()
+        .expect("generate-sample-ledger")
         .success());
 
     assert!(Command::new(bin.join("sample-keys"))
         .args(["--num", "5", "--output-dir", "./fog_keys"])
         .status()
-        .unwrap()
+        .expect("sample-fog-keys")
         .success());
 
     assert!(Command::new(bin.join("fog-distribution"))
@@ -55,6 +69,6 @@ fn test_find_spendable_tx_outs() {
             "--dry-run"
         ])
         .status()
-        .unwrap()
+        .expect("fog-distribution")
         .success());
 }

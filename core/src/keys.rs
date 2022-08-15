@@ -2,16 +2,38 @@
 
 use zeroize::Zeroize;
 
+use sha2::{Sha512, Digest};
+
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic, KeyError};
 
 /// Mobilecoin view private key
-#[derive(Zeroize)]
+#[derive(Clone, Zeroize)]
 pub struct ViewPrivate(RistrettoPrivate);
 
 impl ViewPrivate {
     /// Fetch view private key bytes
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0.to_bytes()
+    }
+}
+
+impl core::fmt::Display for ViewPrivate {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        display_private(&self.0.as_ref(), f)
+    }
+}
+
+impl core::fmt::Debug for ViewPrivate {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        display_private(&self.0.as_ref(), f)
+    }
+}
+
+/// PartialEq via hash...
+/// TODO: is this the correct approach?
+impl PartialEq for ViewPrivate {
+    fn eq(&self, other: &Self) -> bool {
+        Sha512::digest(&self.0) == Sha512::digest(&other.0)
     }
 }
 
@@ -49,7 +71,7 @@ impl From<&ViewPrivate> for ViewPublic {
 
 
 /// Mobilecoin view public key
-#[derive(Zeroize)]
+#[derive(Clone, PartialEq, Zeroize)]
 pub struct ViewPublic(RistrettoPublic);
 
 
@@ -66,6 +88,12 @@ impl AsRef<RistrettoPublic> for ViewPublic {
     }
 }
 
+impl core::fmt::Debug for ViewPublic {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        display_public(&self.0.to_bytes(), f)
+    }
+}
+
 impl ViewPublic {
     /// Fetch view public key bytes
     pub fn to_bytes(&self) -> [u8; 32] {
@@ -74,13 +102,21 @@ impl ViewPublic {
 }
 
 /// Mobilecoin spend private key
-#[derive(Zeroize)]
+#[derive(Clone, Zeroize)]
 pub struct SpendPrivate(RistrettoPrivate);
 
 /// Create a [`SpendPrivate`] key from [`RistrettoPrivate`] object
 impl From<RistrettoPrivate> for SpendPrivate {
     fn from(p: RistrettoPrivate) -> Self {
         Self(p)
+    }
+}
+
+/// PartialEq via hash...
+/// TODO: is this the correct approach?
+impl PartialEq for SpendPrivate {
+    fn eq(&self, other: &Self) -> bool {
+        Sha512::digest(&self.0) == Sha512::digest(&other.0)
     }
 }
 
@@ -108,6 +144,18 @@ impl SpendPrivate {
     }
 }
 
+impl core::fmt::Display for SpendPrivate {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        display_private(&self.0.as_ref(), f)
+    }
+}
+
+impl core::fmt::Debug for SpendPrivate {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        display_private(&self.0.as_ref(), f)
+    }
+}
+
 /// Fetch spend public key from private key
 impl From<&SpendPrivate> for SpendPublic {
     fn from(view_private: &SpendPrivate) -> Self {
@@ -116,7 +164,7 @@ impl From<&SpendPrivate> for SpendPublic {
 }
 
 /// Mobilecoin spend public key
-#[derive(Zeroize)]
+#[derive(Clone, PartialEq, Zeroize)]
 pub struct SpendPublic(RistrettoPublic);
 
 /// AsRef to [`RistrettoPublic`] for backwards compatibility
@@ -126,9 +174,30 @@ impl AsRef<RistrettoPublic> for SpendPublic {
     }
 }
 
+impl core::fmt::Debug for SpendPublic {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        display_public(&self.0.to_bytes(), f)
+    }
+}
+
+impl core::fmt::Display for SpendPublic {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        display_public(&self.0.to_bytes(), f)
+    }
+}
+
 impl From<RistrettoPublic> for SpendPublic {
     fn from(p: RistrettoPublic) -> Self {
         Self(p)
+    }
+}
+
+impl TryFrom<&[u8; 32]> for SpendPublic {
+    type Error = KeyError;
+
+    fn try_from(value: &[u8; 32]) -> Result<Self, Self::Error> {
+        let p = RistrettoPublic::try_from(value)?;
+        Ok(Self(p))
     }
 }
 
@@ -137,4 +206,37 @@ impl SpendPublic {
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0.to_bytes()
     }
+}
+
+fn display_private(key: &[u8], f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    // Compute digest of key (to avoid displaying real value)
+    let h = Sha512::digest(key);
+
+    // Encode to b64 for conciseness
+    let mut buff = [0u8; 64 * 4 / 3 + 3];
+    let n = base64::encode_config_slice(&h, base64::STANDARD, &mut buff);
+
+    // Convert to string, should be infallible but no unsafe allowed here
+    let s = match core::str::from_utf8(&buff[..n]) {
+        Ok(v) => v,
+        Err(_) => return Err(core::fmt::Error),
+    };
+
+    // Write display string
+    write!(f, "sha512:{}", s)
+}
+
+fn display_public(key: &[u8], f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    // Encode to b64 for conciseness
+    let mut buff = [0u8; 64 * 4 / 3 + 3];
+    let n = base64::encode_config_slice(key, base64::STANDARD, &mut buff);
+
+    // Convert to string, should be infallible but no unsafe allowed here
+    let s = match core::str::from_utf8(&buff[..n]) {
+        Ok(v) => v,
+        Err(_) => return Err(core::fmt::Error),
+    };
+
+    // Write display string
+    write!(f, "{}", s)
 }

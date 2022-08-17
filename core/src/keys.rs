@@ -7,25 +7,13 @@ use sha2::{Sha512, Digest};
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic, KeyError};
 
 /// Mobilecoin view private key
-#[derive(Clone, Zeroize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct ViewPrivate(RistrettoPrivate);
 
 impl ViewPrivate {
     /// Fetch view private key bytes
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0.to_bytes()
-    }
-}
-
-impl core::fmt::Display for ViewPrivate {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        display_private(&self.0.as_ref(), f)
-    }
-}
-
-impl core::fmt::Debug for ViewPrivate {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        display_private(&self.0.as_ref(), f)
     }
 }
 
@@ -71,7 +59,7 @@ impl From<&ViewPrivate> for ViewPublic {
 
 
 /// Mobilecoin view public key
-#[derive(Clone, PartialEq, Zeroize)]
+#[derive(Clone, PartialEq, Debug, Zeroize)]
 pub struct ViewPublic(RistrettoPublic);
 
 
@@ -88,12 +76,6 @@ impl AsRef<RistrettoPublic> for ViewPublic {
     }
 }
 
-impl core::fmt::Debug for ViewPublic {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        display_public(&self.0.to_bytes(), f)
-    }
-}
-
 impl ViewPublic {
     /// Fetch view public key bytes
     pub fn to_bytes(&self) -> [u8; 32] {
@@ -102,7 +84,7 @@ impl ViewPublic {
 }
 
 /// Mobilecoin spend private key
-#[derive(Clone, Zeroize)]
+#[derive(Clone, Debug, Zeroize)]
 pub struct SpendPrivate(RistrettoPrivate);
 
 /// Create a [`SpendPrivate`] key from [`RistrettoPrivate`] object
@@ -144,18 +126,6 @@ impl SpendPrivate {
     }
 }
 
-impl core::fmt::Display for SpendPrivate {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        display_private(&self.0.as_ref(), f)
-    }
-}
-
-impl core::fmt::Debug for SpendPrivate {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        display_private(&self.0.as_ref(), f)
-    }
-}
-
 /// Fetch spend public key from private key
 impl From<&SpendPrivate> for SpendPublic {
     fn from(view_private: &SpendPrivate) -> Self {
@@ -164,25 +134,13 @@ impl From<&SpendPrivate> for SpendPublic {
 }
 
 /// Mobilecoin spend public key
-#[derive(Clone, PartialEq, Zeroize)]
+#[derive(Clone, PartialEq, Debug, Zeroize)]
 pub struct SpendPublic(RistrettoPublic);
 
 /// AsRef to [`RistrettoPublic`] for backwards compatibility
 impl AsRef<RistrettoPublic> for SpendPublic {
     fn as_ref(&self) -> &RistrettoPublic {
         &self.0
-    }
-}
-
-impl core::fmt::Debug for SpendPublic {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        display_public(&self.0.to_bytes(), f)
-    }
-}
-
-impl core::fmt::Display for SpendPublic {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        display_public(&self.0.to_bytes(), f)
     }
 }
 

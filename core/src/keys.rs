@@ -1,200 +1,140 @@
 //! Mobilecoin basic key types
 
-use zeroize::Zeroize;
+use core::marker::PhantomData;
 
-use sha2::{Sha512, Digest};
+use zeroize::{Zeroize};
 
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic, KeyError};
 
-/// Mobilecoin view private key
+/// Subaddress marker type
+#[derive(Copy, Clone, Debug)]
+pub struct Subaddr;
+
+/// Root address marker type
+#[derive(Copy, Clone, Debug)]
+pub struct Root;
+
+/// View key marker type
+#[derive(Copy, Clone, Debug)]
+pub struct View;
+
+/// Spend key marker type
+#[derive(Copy, Clone, Debug)]
+pub struct Spend;
+
+/// Generic key object, see type aliases for use
 #[derive(Clone, Debug, Zeroize)]
-pub struct ViewPrivate(RistrettoPrivate);
+pub struct Key<ADDR, KIND, KEY: Default + Zeroize> {
+    key: KEY,
+    #[zeroize(skip)]
+    _addr: PhantomData<ADDR>,
+    #[zeroize(skip)]
+    _kind: PhantomData<KIND>,
+}
 
-impl ViewPrivate {
-    /// Fetch view private key bytes
+/// Subaddress view private key
+pub type SubaddrViewPrivate = Key<Subaddr, View, RistrettoPrivate>;
+/// Subaddress spend private key
+pub type SubaddrSpendPrivate = Key<Subaddr, Spend, RistrettoPrivate>;
+
+/// Subaddress view public key
+pub type SubaddrViewPublic = Key<Subaddr, View, RistrettoPublic>;
+/// Subaddress spend public key
+pub type SubaddrSpendPublic = Key<Subaddr, Spend, RistrettoPublic>;
+
+/// Root view private key
+pub type RootViewPrivate = Key<Root, View, RistrettoPrivate>;
+/// Root spend private key
+pub type RootSpendPrivate = Key<Root, Spend, RistrettoPrivate>;
+
+/// Root view public key
+pub type RootViewPublic = Key<Root, View, RistrettoPublic>;
+/// Root spend public key
+pub type RootSpendPublic = Key<Root, Spend, RistrettoPublic>;
+
+
+/// AsRef to internal key type for backwards compatibility
+impl <ADDR, KIND, KEY: Default + Zeroize> AsRef<KEY> for Key<ADDR, KIND, KEY> {
+    fn as_ref(&self) -> &KEY {
+        &self.key
+    }
+}
+
+/// Create a default key object
+impl <ADDR, KIND, KEY: Default + Zeroize> Default for Key<ADDR, KIND, KEY> {
+    fn default() -> Self {
+        Self{ key: KEY::default(), _addr: PhantomData, _kind: PhantomData }
+    }
+}
+
+/// Shared public key methods
+impl <ADDR, KIND> Key<ADDR, KIND, RistrettoPublic> {
+    /// Fetch public key bytes in compressed form
     pub fn to_bytes(&self) -> [u8; 32] {
-        self.0.to_bytes()
+        self.key.to_bytes()
     }
 }
 
-/// PartialEq via hash...
-/// TODO: is this the correct approach?
-impl PartialEq for ViewPrivate {
-    fn eq(&self, other: &Self) -> bool {
-        Sha512::digest(&self.0) == Sha512::digest(&other.0)
+/// Fetch the public key for a private key instance
+impl <ADDR, KIND> From<&Key<ADDR, KIND, RistrettoPrivate>> for Key<ADDR, KIND, RistrettoPublic> {
+    fn from(p: &Key<ADDR, KIND, RistrettoPrivate>) -> Self {
+        Self{ key: RistrettoPublic::from(&p.key), _addr: PhantomData, _kind: PhantomData }
     }
 }
 
-/// Create a [`ViewPrivate`] key from [`RistrettoPrivate`] object
-impl From<RistrettoPrivate> for ViewPrivate {
-    fn from(p: RistrettoPrivate) -> Self {
-        Self(p)
-    }
-}
-
-/// Attempt to create a [`ViewPrivate`] key from raw bytes, wrapping [`RistrettoPrivate::try_from`]
-impl TryFrom<&[u8; 32]> for ViewPrivate {
-    type Error = KeyError;
-
-    fn try_from(s: &[u8; 32]) -> Result<Self, Self::Error> {
-        let p = RistrettoPrivate::try_from(s)?;
-        Ok(Self(p))
-    }
-}
-
-
-/// AsRef to [`RistrettoPrivate`] for backwards compatibility
-impl AsRef<RistrettoPrivate> for ViewPrivate {
-    fn as_ref(&self) -> &RistrettoPrivate {
-        &self.0
-    }
-}
-
-/// Fetch view public key from private key
-impl From<&ViewPrivate> for ViewPublic {
-    fn from(view_private: &ViewPrivate) -> Self {
-        Self(RistrettoPublic::from(view_private.as_ref()))
-    }
-}
-
-
-/// Mobilecoin view public key
-#[derive(Clone, PartialEq, Debug, Zeroize)]
-pub struct ViewPublic(RistrettoPublic);
-
-
-impl From<RistrettoPublic> for ViewPublic {
+/// Create a public key from [`RistrettoPublic`] object
+impl <ADDR, KIND> From<RistrettoPublic> for Key<ADDR, KIND, RistrettoPublic> {
     fn from(p: RistrettoPublic) -> Self {
-        Self(p)
+        Self{ key: p, _addr: PhantomData, _kind: PhantomData }
     }
 }
 
-/// AsRef to [`RistrettoPublic`] for backwards compatibility
-impl AsRef<RistrettoPublic> for ViewPublic {
-    fn as_ref(&self) -> &RistrettoPublic {
-        &self.0
+/// Attempt to create a public key from a compressed point, wrapping [`RistrettoPublic::try_from`]
+impl <ADDR, KIND> TryFrom<&[u8; 32]> for Key<ADDR, KIND, RistrettoPublic> {
+    type Error = KeyError;
+
+    fn try_from(p: &[u8; 32]) -> Result<Self, Self::Error> {
+        let key = RistrettoPublic::try_from(p)?;
+        Ok(Self{ key, _addr: PhantomData, _kind: PhantomData })
     }
 }
 
-impl ViewPublic {
-    /// Fetch view public key bytes
-    pub fn to_bytes(&self) -> [u8; 32] {
-        self.0.to_bytes()
-    }
-}
-
-/// Mobilecoin spend private key
-#[derive(Clone, Debug, Zeroize)]
-pub struct SpendPrivate(RistrettoPrivate);
-
-/// Create a [`SpendPrivate`] key from [`RistrettoPrivate`] object
-impl From<RistrettoPrivate> for SpendPrivate {
-    fn from(p: RistrettoPrivate) -> Self {
-        Self(p)
-    }
-}
-
-/// PartialEq via hash...
-/// TODO: is this the correct approach?
-impl PartialEq for SpendPrivate {
+/// PartialEq for public key objects
+impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPublic> {
     fn eq(&self, other: &Self) -> bool {
-        Sha512::digest(&self.0) == Sha512::digest(&other.0)
+        &self.key == &other.key
     }
 }
 
-/// Attempt to create a [`SpendPrivate`] key from raw bytes, wrapping [`RistrettoPrivate::try_from`]
-impl TryFrom<&[u8; 32]> for SpendPrivate {
+
+/// Shared private key methods
+impl <ADDR, KIND> Key<ADDR, KIND, RistrettoPrivate> {
+    /// Fetch private key bytes
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.key.to_bytes()
+    }
+}
+
+/// Create a private key from [`RistrettoPrivate`] object
+impl <ADDR, KIND> From<RistrettoPrivate> for Key<ADDR, KIND, RistrettoPrivate> {
+    fn from(p: RistrettoPrivate) -> Self {
+        Self{ key: p, _addr: PhantomData, _kind: PhantomData }
+    }
+}
+
+/// Attempt to create a private key from a compressed point, wrapping [`RistrettoPrivate::try_from`]
+impl <ADDR, KIND> TryFrom<&[u8; 32]> for Key<ADDR, KIND, RistrettoPrivate> {
     type Error = KeyError;
 
-    fn try_from(s: &[u8; 32]) -> Result<Self, Self::Error> {
-        let p = RistrettoPrivate::try_from(s)?;
-        Ok(Self(p))
+    fn try_from(p: &[u8; 32]) -> Result<Self, Self::Error> {
+        let key = RistrettoPrivate::try_from(p)?;
+        Ok(Self{ key, _addr: PhantomData, _kind: PhantomData })
     }
 }
 
-/// AsRef to [`RistrettoPrivate`] for backwards compatibility
-impl AsRef<RistrettoPrivate> for SpendPrivate {
-    fn as_ref(&self) -> &RistrettoPrivate {
-        &self.0
+/// PartialEq via public key conversion for Private key objects
+impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPrivate> {
+    fn eq(&self, other: &Self) -> bool {
+        RistrettoPublic::from(&self.key) == RistrettoPublic::from(&other.key)
     }
-}
-
-impl SpendPrivate {
-    /// Fetch spend private key bytes
-    pub fn to_bytes(&self) -> [u8; 32] {
-        self.0.to_bytes()
-    }
-}
-
-/// Fetch spend public key from private key
-impl From<&SpendPrivate> for SpendPublic {
-    fn from(view_private: &SpendPrivate) -> Self {
-        Self(RistrettoPublic::from(view_private.as_ref()))
-    }
-}
-
-/// Mobilecoin spend public key
-#[derive(Clone, PartialEq, Debug, Zeroize)]
-pub struct SpendPublic(RistrettoPublic);
-
-/// AsRef to [`RistrettoPublic`] for backwards compatibility
-impl AsRef<RistrettoPublic> for SpendPublic {
-    fn as_ref(&self) -> &RistrettoPublic {
-        &self.0
-    }
-}
-
-impl From<RistrettoPublic> for SpendPublic {
-    fn from(p: RistrettoPublic) -> Self {
-        Self(p)
-    }
-}
-
-impl TryFrom<&[u8; 32]> for SpendPublic {
-    type Error = KeyError;
-
-    fn try_from(value: &[u8; 32]) -> Result<Self, Self::Error> {
-        let p = RistrettoPublic::try_from(value)?;
-        Ok(Self(p))
-    }
-}
-
-impl SpendPublic {
-    /// Fetch spend public key bytes
-    pub fn to_bytes(&self) -> [u8; 32] {
-        self.0.to_bytes()
-    }
-}
-
-fn display_private(key: &[u8], f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    // Compute digest of key (to avoid displaying real value)
-    let h = Sha512::digest(key);
-
-    // Encode to b64 for conciseness
-    let mut buff = [0u8; 64 * 4 / 3 + 3];
-    let n = base64::encode_config_slice(&h, base64::STANDARD, &mut buff);
-
-    // Convert to string, should be infallible but no unsafe allowed here
-    let s = match core::str::from_utf8(&buff[..n]) {
-        Ok(v) => v,
-        Err(_) => return Err(core::fmt::Error),
-    };
-
-    // Write display string
-    write!(f, "sha512:{}", s)
-}
-
-fn display_public(key: &[u8], f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    // Encode to b64 for conciseness
-    let mut buff = [0u8; 64 * 4 / 3 + 3];
-    let n = base64::encode_config_slice(key, base64::STANDARD, &mut buff);
-
-    // Convert to string, should be infallible but no unsafe allowed here
-    let s = match core::str::from_utf8(&buff[..n]) {
-        Ok(v) => v,
-        Err(_) => return Err(core::fmt::Error),
-    };
-
-    // Write display string
-    write!(f, "{}", s)
 }

@@ -28,10 +28,10 @@ pub use keys::*;
 pub struct Account {
     /// Root view private key
     // TODO: can we make this non-public?
-    pub view_private: ViewPrivate,
+    pub view_private: RootViewPrivate,
     /// Root spend private key
     // TODO: can we make this non-public?
-    pub spend_private: SpendPrivate,
+    pub spend_private: RootSpendPrivate,
 }
 
 impl Account {
@@ -46,7 +46,7 @@ impl Account {
     }
 
     /// Create an account from existing private keys
-    pub fn new(view_private: ViewPrivate, spend_private: SpendPrivate) -> Self {
+    pub fn new(view_private: RootViewPrivate, spend_private: RootSpendPrivate) -> Self {
         Self { view_private, spend_private }
     }
 
@@ -69,8 +69,8 @@ impl Account {
         let spend_private_key = RistrettoPrivate::from(spend_scalar);
 
         Self{
-            spend_private: SpendPrivate::from(spend_private_key), 
-            view_private: ViewPrivate::from(view_private_key),
+            spend_private: RootSpendPrivate::from(spend_private_key), 
+            view_private: RootViewPrivate::from(view_private_key),
         }
     }
 
@@ -88,7 +88,7 @@ impl Account {
     }
 
     /// The private view key for the i^th subaddress.
-    fn subaddress_view_private(&self, index: u64) -> ViewPrivate {
+    fn subaddress_view_private(&self, index: u64) -> SubaddrViewPrivate {
         let a: &Scalar = self.view_private.as_ref().as_ref();
 
         // `Hs(a || n)`
@@ -103,11 +103,11 @@ impl Account {
 
         let b: &Scalar = self.spend_private.as_ref().as_ref();
         let c = a * (Hs + b);
-        ViewPrivate::from(RistrettoPrivate::from(c))
+        SubaddrViewPrivate::from(RistrettoPrivate::from(c))
     }
 
     /// The private spend key for the i^th subaddress.
-    fn subaddress_spend_private(&self, index: u64) -> SpendPrivate {
+    fn subaddress_spend_private(&self, index: u64) -> SubaddrSpendPrivate {
         let a: &Scalar = self.view_private.as_ref().as_ref();
 
         // `Hs(a || n)`
@@ -121,28 +121,28 @@ impl Account {
         };
 
         let b: &Scalar = self.spend_private.as_ref().as_ref();
-        SpendPrivate::from(RistrettoPrivate::from(Hs + b))
+        SubaddrSpendPrivate::from(RistrettoPrivate::from(Hs + b))
     }
 }
 
 /// Mobilecoin basic sub-address object
 pub struct Subaddress {
     /// sub-address view private key
-    pub view_private: ViewPrivate,
+    pub view_private: SubaddrViewPrivate,
     /// sub-address spend private key
-    pub spend_private: SpendPrivate,
+    pub spend_private: SubaddrSpendPrivate,
 }
 
 
 impl Subaddress {
     /// Fetch view public address
-    pub fn view_public(&self) -> ViewPublic {
-        ViewPublic::from(&self.view_private)
+    pub fn view_public(&self) -> SubaddrViewPublic {
+        SubaddrViewPublic::from(&self.view_private)
     }
 
     /// Fetch spend public address
-    pub fn spend_public(&self) -> SpendPublic {
-        SpendPublic::from(&self.spend_private)
+    pub fn spend_public(&self) -> SubaddrSpendPublic {
+        SubaddrSpendPublic::from(&self.spend_private)
     }
 }
 
@@ -150,9 +150,9 @@ impl Subaddress {
 /// Mobilecoin basic public address object
 pub struct PublicAddress {
     /// Public address view public key
-    pub view_public: ViewPublic,
+    pub view_public: SubaddrViewPublic,
     /// Public address spend public key
-    pub spend_public: SpendPublic,
+    pub spend_public: SubaddrSpendPublic,
 }
 
 /// Create a [`PublicAddress`] object for a given subaddress

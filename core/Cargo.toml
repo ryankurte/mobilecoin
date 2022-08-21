@@ -6,6 +6,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+bip39 = [ "tiny-bip39", "slip10_ed25519" ]
+default = [ "bip39" ]
+
 [dependencies]
 hkdf = "0.12.3"
 sha2 = { version = "0.10", default-features = false }
@@ -22,11 +26,15 @@ curve25519-dalek = { version = "4.0.0-pre.2", default-features = false }
 ed25519-dalek = { version = "2.0.0-pre.1", default-features = false }
 x25519-dalek = { version = "2.0.0-pre.2", default-features = false }
 
+tiny-bip39 = { version = "1.0", optional = true }
+slip10_ed25519 = { version = "0.1", optional = true }
+
 [dev-dependencies]
-#mc-test-vectors-account-keys = { path = "../test-vectors/account-keys" }
-#mc-util-test-helper = { path = "../util/test-helper" }
 serde = { version = "*", features = [ "derive" ] }
 
-#mc-util-test-vector = { path = "../util/test-vector" }
-#mc-util-test-with-data = { path = "../util/test-with-data" }
-#mc-test-vectors-definitions = { path = "../test-vectors/definitions" }
+#mc-test-vectors-account-keys = { path = "../test-vectors/account-keys" }
+#mc-util-test-helper = { path = "../util/test-helper" }
+
+mc-util-test-vector = { path = "../util/test-vector" }
+mc-util-test-with-data = { path = "../util/test-with-data" }
+mc-test-vectors-definitions = { path = "../test-vectors/definitions" }

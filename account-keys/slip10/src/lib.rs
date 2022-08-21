@@ -12,7 +12,7 @@ use zeroize::Zeroize;
 #[cfg(feature = "tiny-bip39")]
 use bip39::{Mnemonic, Seed};
 
-use mc_core::{ViewPrivate, SpendPrivate};
+use mc_core::{RootViewPrivate, RootSpendPrivate};
 use mc_crypto_keys::RistrettoPrivate;
 
 /// A key derived using SLIP-0010 key derivation
@@ -29,8 +29,8 @@ impl AsRef<[u8]> for Slip10Key {
 /// Create the view and spend private keys, and return them in reverse order,
 /// e.g. `(spend, view)`, to match
 /// [`AccountKey::new()`](mc_account_key::AccountKey::new)
-impl From<Slip10Key> for (SpendPrivate, ViewPrivate) {
-    fn from(src: Slip10Key) -> (SpendPrivate, ViewPrivate) {
+impl From<Slip10Key> for (RootSpendPrivate, RootViewPrivate) {
+    fn from(src: Slip10Key) -> (RootSpendPrivate, RootViewPrivate) {
         let mut okm = [0u8; 64];
 
         let view_kdf = Hkdf::<Sha512>::new(Some(b"mobilecoin-ristretto255-view"), src.as_ref());
@@ -47,7 +47,7 @@ impl From<Slip10Key> for (SpendPrivate, ViewPrivate) {
         let spend_scalar = Scalar::from_bytes_mod_order_wide(&okm);
         let spend_private_key = RistrettoPrivate::from(spend_scalar);
 
-        (SpendPrivate::from(spend_private_key), ViewPrivate::from(view_private_key))
+        (RootSpendPrivate::from(spend_private_key), RootViewPrivate::from(view_private_key))
     }
 }
 

@@ -2970,8 +2970,13 @@ dependencies = [
  "mc-crypto-hashes",
  "mc-crypto-keys",
  "mc-crypto-platform",
+ "mc-test-vectors-definitions",
+ "mc-util-test-vector",
+ "mc-util-test-with-data",
  "serde",
  "sha2 0.10.2",
+ "slip10_ed25519",
+ "tiny-bip39",
  "x25519-dalek",
  "zeroize",
 ]

@@ -1,0 +1,118 @@
+//! MobileCoin SLIP-0010 / BIP39 Based Key Derivation
+
+use curve25519_dalek::{scalar::Scalar};
+use hkdf::Hkdf;
+use sha2::Sha512;
+use zeroize::Zeroize;
+
+use mc_crypto_keys::{RistrettoPrivate};
+
+#[cfg(feature = "bip39")]
+pub use bip39::Mnemonic;
+
+use crate::{
+    Account,
+    consts::{COINTYPE_MOBILECOIN, USAGE_BIP44},
+    keys::{RootSpendPrivate, RootViewPrivate},
+};
+
+
+/// Fetch the BIP39 path for a given account index
+pub const fn wallet_path(account_index: u32) -> [u32; 3] {
+    [
+        0x80000000 | USAGE_BIP44,
+        0x80000000 | COINTYPE_MOBILECOIN,
+        0x80000000 | (account_index & !0x80000000),
+    ]
+}
+
+/// A key derived using SLIP-0010 key derivation
+#[derive(Zeroize)]
+#[zeroize(drop)]
+pub struct Slip10Key([u8; 32]);
+
+/// Access [`Slip10Key`] value
+impl AsRef<[u8]> for Slip10Key {
+    fn as_ref(&self) -> &[u8] {
+        &self.0[..]
+    }
+}
+
+/// Derive an [`Account`] object from slip10 derived Ed25519 private key
+/// (see [`wallet_path`] for the BIP32 derivation path)
+impl From<&Slip10Key> for Account {
+    fn from(src: &Slip10Key) -> Self {
+        Account{
+            spend_private: RootSpendPrivate::from(src), 
+            view_private: RootViewPrivate::from(src),
+        }
+    }
+}
+
+/// Derive [`RootViewPrivate`] key from SLIP-0010 derived Ed25519 key
+impl From<&Slip10Key> for RootViewPrivate {
+    fn from(src: &Slip10Key) -> Self {
+        let mut okm = [0u8; 64];
+
+        let view_kdf = Hkdf::<Sha512>::new(Some(b"mobilecoin-ristretto255-view"), src.as_ref());
+        view_kdf
+            .expand(b"", &mut okm)
+            .expect("Invalid okm length when creating private view key");
+        let view_scalar = Scalar::from_bytes_mod_order_wide(&okm);
+        let view_private_key = RistrettoPrivate::from(view_scalar);
+
+        RootViewPrivate::from(view_private_key)
+    }
+}
+
+/// Derive [`RootSpendPrivate`] key from SLIP-0010 derived Ed25519 key
+impl From<&Slip10Key> for RootSpendPrivate {
+    fn from(src: &Slip10Key) -> Self {
+        let mut okm = [0u8; 64];
+        
+        let spend_kdf = Hkdf::<Sha512>::new(Some(b"mobilecoin-ristretto255-spend"), src.as_ref());
+        spend_kdf
+            .expand(b"", &mut okm)
+            .expect("Invalid okm length when creating private spend key");
+        let spend_scalar = Scalar::from_bytes_mod_order_wide(&okm);
+        let spend_private_key = RistrettoPrivate::from(spend_scalar);
+
+        RootSpendPrivate::from(spend_private_key)
+    }
+}
+
+/// A common interface for constructing a [`Slip10Key`] for MobileCoin given an
+/// account index.
+pub trait Slip10KeyGenerator {
+    /// Derive a MobileCoin SLIP10 key for the given account from the current
+    /// object
+    fn derive_slip10_key(self, account_index: u32) -> Slip10Key;
+}
+
+// This lets us get to
+// Mnemonic::from_phrases().derive_slip10_key(account_index).
+// try_into_account_key(...)
+#[cfg(feature = "bip39")]
+impl Slip10KeyGenerator for bip39::Mnemonic {
+    fn derive_slip10_key(self, account_index: u32) -> Slip10Key {
+        // We explicitly do not support passphrases for BIP-39 mnemonics, please
+        // see the MobileCoin Key Derivation design specification, v1.0.0, for
+        // design rationale.
+        let seed = bip39::Seed::new(&self, "");
+
+        // This is constructing an `m/44/866/<idx>` BIP32 path for use by SLIP-0010.
+        let path = wallet_path(account_index);
+
+        // We're taking what the SLIP-0010 spec calls the "Ed25519 private key"
+        // here as our `Slip10Key`. That said, we're not actually using this as
+        // an Ed25519 key, just IKM for a pair of HKDF-SHA512 instances whose
+        // output will be correctly transformed into the Ristretto255 keypair we
+        // need.
+        //
+        // This will also transform any "unhardened" path components into their
+        // "hardened" version.
+        let key = slip10_ed25519::derive_ed25519_private_key(seed.as_bytes(), &path);
+
+        Slip10Key(key)
+    }
+}

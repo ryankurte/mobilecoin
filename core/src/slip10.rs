@@ -38,6 +38,14 @@ impl AsRef<[u8]> for Slip10Key {
     }
 }
 
+#[cfg(feature = "internals")]
+impl Slip10Key {
+    /// Create a SLIP-0010 key from raw Ed25519 private key value
+    pub fn from_raw(raw: [u8; 32]) -> Self {
+        Self(raw)
+    }
+}
+
 /// Derive an [`Account`] object from slip10 derived Ed25519 private key
 /// (see [`wallet_path`] for the BIP32 derivation path)
 impl From<&Slip10Key> for Account {

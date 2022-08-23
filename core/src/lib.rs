@@ -33,17 +33,9 @@ pub struct Account {
 
 
 impl Account {
-
     /// Create an account from existing private keys
     pub fn new(view_private: RootViewPrivate, spend_private: RootSpendPrivate) -> Self {
         Self { view_private, spend_private }
-    }
-
-    /// Fetch keys for the i^th subaddress
-    pub fn subaddress(&self, index: u64) -> SpendSubaddress {
-        let (view_private, spend_private) = (&self.view_private, &self.spend_private).subaddress(index);
-
-        SpendSubaddress{view_private, spend_private}
     }
 
     /// Fetch keys for the default subaddress
@@ -52,9 +44,19 @@ impl Account {
     }
 }
 
+impl Subaddress for Account {
+    type Output = SpendSubaddress;
 
+    /// Fetch private keys for the i^th subaddress
+    fn subaddress(&self, index: u64) -> Self::Output {
+        let (view_private, spend_private) = (&self.view_private, &self.spend_private).subaddress(index);
+
+        SpendSubaddress{view_private, spend_private}
+    }
+}
 
 /// Mobilecoin private subaddress object
+#[derive(Clone, Debug, PartialEq)]
 pub struct SpendSubaddress {
     /// sub-address view private key
     pub view_private: SubaddrViewPrivate,
@@ -76,6 +78,7 @@ impl SpendSubaddress {
 }
 
 /// Mobilecoin view-only subaddress object
+#[derive(Clone, Debug, PartialEq)]
 pub struct ViewSubaddress {
     /// sub-address view private key
     pub view_private: SubaddrViewPrivate,
@@ -91,6 +94,7 @@ impl ViewSubaddress {
 }
 
 /// Mobilecoin public subaddress object
+#[derive(Clone, Debug, PartialEq)]
 pub struct PublicSubaddress {
     /// Public address view public key
     pub view_public: SubaddrViewPublic,
@@ -98,7 +102,7 @@ pub struct PublicSubaddress {
     pub spend_public: SubaddrSpendPublic,
 }
 
-/// Create a [`PublicAddress`] object from a [`SpendSubaddress`]
+/// Create a [`PublicSubaddress`] object from a [`SpendSubaddress`]
 impl From<&SpendSubaddress> for PublicSubaddress {
     fn from(addr: &SpendSubaddress) -> Self {
         Self{ 
@@ -108,7 +112,7 @@ impl From<&SpendSubaddress> for PublicSubaddress {
     }
 }
 
-/// Create a [`PublicAddress`] object from a [`ViewSubaddress`]
+/// Create a [`PublicSubaddress`] object from a [`ViewSubaddress`]
 impl From<&ViewSubaddress> for PublicSubaddress {
     fn from(addr: &ViewSubaddress) -> Self {
         Self{ 
@@ -117,9 +121,4 @@ impl From<&ViewSubaddress> for PublicSubaddress {
         }
     }
 }
-
-impl PublicSubaddress {
-
-}
-
 

@@ -9,7 +9,7 @@ readme = "README.md"
 [features]
 alloc = [ "base64/alloc", "ed25519-dalek/alloc", "ed25519-dalek/alloc", "mc-crypto-digestible/alloc", "mc-crypto-digestible-signature/alloc" ]
 serde_derive = [ "serde", "ed25519/serde", "ed25519-dalek/serde", "ed25519-dalek/serde", "mc-util-repr-bytes/serde" ]
-prost = []
+prost = [ "mc-util-repr-bytes/prost" ]
 default = [ "alloc", "serde_derive", "prost", "mc-util-repr-bytes/default" ]
  
 [dependencies]

@@ -3,6 +3,8 @@
 use core::{fmt, hash::Hash, ops::Deref, str::FromStr};
 use displaydoc::Display;
 use mc_crypto_digestible::Digestible;
+
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// A block version number that is known to be less or equal to
@@ -21,16 +23,15 @@ use serde::{Deserialize, Serialize};
     Copy,
     Debug,
     Default,
-    Deserialize,
     Digestible,
     Eq,
     Hash,
     Ord,
     PartialOrd,
     PartialEq,
-    Serialize,
 )]
-#[serde(try_from = "u32")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(try_from = "u32"))]
 pub struct BlockVersion(u32);
 
 impl TryFrom<u32> for BlockVersion {
@@ -160,7 +161,8 @@ impl Iterator for BlockVersionIterator {
 
 /// An error that can occur when parsing a block version or interpreting u32 as
 /// a block version
-#[derive(Clone, Display, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Display, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BlockVersionError {
     /// Unsupported block version: {0} > {1}. Try upgrading your software
     UnsupportedBlockVersion(u32, u32),

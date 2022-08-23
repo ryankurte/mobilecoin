@@ -1,16 +1,21 @@
 // Copyright (c) 2018-2022 The MobileCoin Foundation
 
-extern crate alloc;
-
-use alloc::{vec, vec::Vec};
 use curve25519_dalek::ristretto::RistrettoPoint;
 use mc_crypto_digestible::Digestible;
 use mc_crypto_hashes::{Blake2b512, Digest};
 use mc_crypto_keys::{CompressedRistrettoPublic, RistrettoPrivate, RistrettoPublic};
-use prost::Message;
+
 use rand_core::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
+
+#[cfg(feature = "alloc")]
+use alloc::{vec, vec::Vec};
+
+#[cfg(feature = "prost")]
+use prost::Message;
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use crate::{
     domain_separators::RING_MLSAG_CHALLENGE_DOMAIN_TAG,
@@ -45,19 +50,21 @@ pub struct ReducedTxOut {
 /// MLSAG for a ring of public keys and amount commitments.
 /// Note: Serialize and Deserialize appear to be cruft left over from
 /// sdk_json_interface.
-#[derive(Clone, Digestible, PartialEq, Eq, Serialize, Deserialize, Message)]
+#[derive(Clone, Digestible, PartialEq, Eq)]
+#[cfg_attr(feature = "prost", derive(Message))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct RingMLSAG {
     /// The initial challenge `c[0]`.
-    #[prost(message, required, tag = "1")]
+    #[cfg_attr(feature = "prost", prost(message, required, tag = "1"))]
     pub c_zero: CurveScalar,
 
     /// Responses `r_{0,0}, r_{0,1}, ... , r_{ring_size-1,0},
     /// r_{ring_size-1,1}`.
-    #[prost(message, repeated, tag = "2")]
+    #[cfg_attr(feature = "prost", prost(message, repeated, tag = "2"))]
     pub responses: Vec<CurveScalar>,
 
     /// Key image "spent" by this signature.
-    #[prost(message, required, tag = "3")]
+    #[cfg_attr(feature = "prost", prost(message, required, tag = "3"))]
     pub key_image: KeyImage,
 }
 
@@ -846,6 +853,7 @@ mod mlsag_tests {
         }
 
         #[test]
+        #[cfg(feature = "prost")]
         // decode(encode(&signature)) should be the identity function.
         fn test_encode_decode(
             num_mixins in 1..17usize,

@@ -6,12 +6,18 @@ use mc_crypto_digestible::Digestible;
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic};
 use mc_util_repr_bytes::{
     derive_core_cmp_from_as_ref, derive_debug_and_display_hex_from_as_ref,
-    derive_prost_message_from_repr_bytes, derive_repr_bytes_from_as_ref_and_try_from, typenum::U32,
+    derive_repr_bytes_from_as_ref_and_try_from, typenum::U32,
     LengthMismatch,
 };
+
+#[cfg(feature = "prost")]
+use mc_util_repr_bytes::derive_prost_message_from_repr_bytes;
+
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Default, Serialize, Deserialize, Digestible)]
+#[derive(Copy, Clone, Default, Digestible)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[digestible(transparent)]
 /// The "image" of a private key `x`: I = x * Hp(x * G) = x * Hp(P).
 pub struct KeyImage {
@@ -92,6 +98,8 @@ impl TryFrom<&[u8]> for KeyImage {
 }
 
 derive_repr_bytes_from_as_ref_and_try_from!(KeyImage, U32);
-derive_prost_message_from_repr_bytes!(KeyImage);
 derive_core_cmp_from_as_ref!(KeyImage, [u8; 32]);
 derive_debug_and_display_hex_from_as_ref!(KeyImage);
+
+#[cfg(feature = "prost")]
+derive_prost_message_from_repr_bytes!(KeyImage);

@@ -2220,7 +2220,6 @@ dependencies = [
  "curve25519-dalek",
  "displaydoc",
  "hkdf",
- "mc-account-keys-slip10",
  "mc-account-keys-types",
  "mc-core",
  "mc-crypto-digestible",
@@ -2960,16 +2959,18 @@ dependencies = [
 
 [[package]]
 name = "mc-core"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "base64",
  "curve25519-dalek",
  "ed25519-dalek",
+ "hex",
  "hkdf",
  "mc-crypto-digestible",
  "mc-crypto-hashes",
  "mc-crypto-keys",
  "mc-crypto-platform",
+ "mc-crypto-ring-signature",
  "mc-test-vectors-definitions",
  "mc-util-test-vector",
  "mc-util-test-with-data",
@@ -3184,6 +3185,7 @@ version = "2.0.0"
 dependencies = [
  "curve25519-dalek",
  "displaydoc",
+ "ed25519-dalek",
  "hex_fmt",
  "mc-account-keys",
  "mc-account-keys-types",

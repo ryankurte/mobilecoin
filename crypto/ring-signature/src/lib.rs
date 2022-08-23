@@ -6,6 +6,7 @@
 #![no_std]
 #![deny(missing_docs)]
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 use crate::onetime_keys::create_shared_secret;

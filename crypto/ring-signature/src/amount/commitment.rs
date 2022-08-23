@@ -5,9 +5,12 @@ use core::fmt;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use mc_crypto_digestible::Digestible;
 use mc_util_repr_bytes::{
-    derive_prost_message_from_repr_bytes, derive_try_from_slice_from_repr_bytes, typenum::U32,
+    derive_try_from_slice_from_repr_bytes, typenum::U32,
     GenericArray, ReprBytes,
 };
+
+#[cfg(feature = "prost")]
+use mc_util_repr_bytes::derive_prost_message_from_repr_bytes;
 
 /// A Pedersen commitment in uncompressed Ristretto format.
 #[derive(Copy, Clone, Default, Digestible)]
@@ -64,8 +67,10 @@ impl ReprBytes for Commitment {
     }
 }
 
-derive_prost_message_from_repr_bytes!(Commitment);
 derive_try_from_slice_from_repr_bytes!(Commitment);
+
+#[cfg(feature = "prost")]
+derive_prost_message_from_repr_bytes!(Commitment);
 
 #[cfg(test)]
 #[allow(non_snake_case)]

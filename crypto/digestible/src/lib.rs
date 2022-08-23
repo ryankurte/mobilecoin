@@ -476,6 +476,46 @@ impl<T: Digestible> Digestible for &[T] {
     }
 }
 
+// Implementation for arrays of Digestible
+// This is treated as a Seq in the abstract structure hashing schema
+//
+// Note that this includes length, because the size is dynamic so we must
+// protect against length extension attacks.
+impl<T: Digestible, const N: usize> Digestible for &[T; N] {
+    #[inline]
+    fn append_to_transcript<DT: DigestTranscript>(
+        &self,
+        context: &'static [u8],
+        transcript: &mut DT,
+    ) {
+        if self.len() == 0{
+            // This allows for schema evolution in variant types, it means Vec can be added
+            // to a fieldless enum
+            transcript.append_none(context);
+        } else {
+            transcript.append_seq_header(context, self.len());
+            for elem in self.iter() {
+                elem.append_to_transcript(b"", transcript);
+            }
+        }
+    }
+
+    // When context allows us to omit the element, we omit it if it is empty.
+    // This means that, for example, new Vec can be added as structure members,
+    // without changing the hash of old structures where the Vec is empty.
+    // This is similar to how new "repeated" fields can be added in protobuf.
+    #[inline]
+    fn append_to_transcript_allow_omit<DT: DigestTranscript>(
+        &self,
+        context: &'static [u8],
+        transcript: &mut DT,
+    ) {
+        if !self.is_empty() {
+            self.append_to_transcript(context, transcript);
+        }
+    }
+}
+
 // Implement for Option<T>
 //
 // Option has a special implementation because it is used to allow for schema

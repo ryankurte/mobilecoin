@@ -21,8 +21,11 @@ pub use self::{
 use crate::domain_separators::HASH_TO_POINT_DOMAIN_TAG;
 use curve25519_dalek::{
     constants::{RISTRETTO_BASEPOINT_COMPRESSED, RISTRETTO_BASEPOINT_POINT},
-    traits::MultiscalarMul,
 };
+
+#[cfg(feature = "alloc")]
+use curve25519_dalek::traits::MultiscalarMul;
+
 use mc_crypto_hashes::{Blake2b512, Digest};
 use mc_crypto_keys::RistrettoPublic;
 
@@ -45,7 +48,13 @@ impl PedersenGens {
     /// Creates a Pedersen commitment using the value scalar and a blinding
     /// factor.
     pub fn commit(&self, value: Scalar, blinding: Scalar) -> RistrettoPoint {
-        RistrettoPoint::multiscalar_mul(&[value, blinding], &[self.B, self.B_blinding])
+        // Use optimised Straus' method if alloc is available
+        #[cfg(feature = "alloc")]
+        return RistrettoPoint::multiscalar_mul(&[value, blinding], &[self.B, self.B_blinding]);
+
+        // Otherwise fallback to naive method
+        #[cfg(not(feature = "alloc"))]
+        return value * self.B + blinding * self.B_blinding;
     }
 }
 

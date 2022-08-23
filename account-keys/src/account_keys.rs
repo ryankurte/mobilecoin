@@ -27,10 +27,10 @@ use alloc::{
 
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 use mc_account_keys_types::RingCtAddress;
+use mc_core::{RootViewPrivate, RootSpendPrivate, slip10::Slip10Key};
 use mc_crypto_digestible::Digestible;
 use mc_crypto_hashes::{Blake2b512, Digest};
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic};
-use mc_account_keys_slip10::Slip10Key;
 use mc_fog_sig_authority::{Signer as AuthoritySigner, Verifier as AuthorityVerifier};
 use mc_util_from_random::FromRandom;
 use rand_core::{CryptoRng, RngCore};
@@ -281,7 +281,11 @@ impl AccountKey {
         fog_report_id: &str,
         fog_authority_spki: &[u8],
     ) -> Result<AccountKey, crate::Error> {
-        let (spend_private_key, view_private_key) = slip10.into();
+        let (spend_private_key, view_private_key) = (
+            RootSpendPrivate::from(&slip10),
+            RootViewPrivate::from(&slip10),
+        );
+
         Ok(AccountKey::new_with_fog(
             spend_private_key.as_ref(),
             view_private_key.as_ref(),
@@ -293,8 +297,11 @@ impl AccountKey {
 }
 
 impl From<Slip10Key> for AccountKey {
-    fn from(src: Slip10Key) -> AccountKey {
-        let (spend_private_key, view_private_key) = src.into();
+    fn from(slip10: Slip10Key) -> AccountKey {
+        let (spend_private_key, view_private_key) = (
+            RootSpendPrivate::from(&slip10),
+            RootViewPrivate::from(&slip10),
+        );
         AccountKey::new(spend_private_key.as_ref(), view_private_key.as_ref())
     }
 }

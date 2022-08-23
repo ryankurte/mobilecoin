@@ -4,123 +4,19 @@
 #![warn(missing_docs)]
 #![deny(unsafe_code)]
 
-use curve25519_dalek::scalar::Scalar;
-use hkdf::Hkdf;
-use sha2::Sha512;
-use zeroize::Zeroize;
-
-#[cfg(feature = "tiny-bip39")]
-use bip39::{Mnemonic, Seed};
-
-use mc_core::{RootViewPrivate, RootSpendPrivate};
-use mc_crypto_keys::RistrettoPrivate;
-
-/// A key derived using SLIP-0010 key derivation
-#[derive(Zeroize)]
-#[zeroize(drop)]
-pub struct Slip10Key([u8; 32]);
-
-impl AsRef<[u8]> for Slip10Key {
-    fn as_ref(&self) -> &[u8] {
-        &self.0[..]
-    }
-}
-
-/// Create the view and spend private keys, and return them in reverse order,
-/// e.g. `(spend, view)`, to match
-/// [`AccountKey::new()`](mc_account_key::AccountKey::new)
-impl From<Slip10Key> for (RootSpendPrivate, RootViewPrivate) {
-    fn from(src: Slip10Key) -> (RootSpendPrivate, RootViewPrivate) {
-        let mut okm = [0u8; 64];
-
-        let view_kdf = Hkdf::<Sha512>::new(Some(b"mobilecoin-ristretto255-view"), src.as_ref());
-        view_kdf
-            .expand(b"", &mut okm)
-            .expect("Invalid okm length when creating private view key");
-        let view_scalar = Scalar::from_bytes_mod_order_wide(&okm);
-        let view_private_key = RistrettoPrivate::from(view_scalar);
-
-        let spend_kdf = Hkdf::<Sha512>::new(Some(b"mobilecoin-ristretto255-spend"), src.as_ref());
-        spend_kdf
-            .expand(b"", &mut okm)
-            .expect("Invalid okm length when creating private spend key");
-        let spend_scalar = Scalar::from_bytes_mod_order_wide(&okm);
-        let spend_private_key = RistrettoPrivate::from(spend_scalar);
-
-        (RootSpendPrivate::from(spend_private_key), RootViewPrivate::from(view_private_key))
-    }
-}
-
-impl From<[u8; 32]> for Slip10Key {
-    fn from(src: [u8; 32]) -> Self {
-        Self(src)
-    }
-}
-
-/// A default derivation of the [`Slip10Key`] from a
-/// [`Mnemonic`](tiny_bip39::Mnemonic).
-///
-/// This is equivalent to calling `mnemonic.derive_slip10_key(0)`.
-#[cfg(feature = "tiny-bip39")]
-impl From<Mnemonic> for Slip10Key {
-    fn from(src: Mnemonic) -> Slip10Key {
-        src.derive_slip10_key(0)
-    }
-}
-
-/// A common interface for constructing a [`Slip10Key`] for MobileCoin given an
-/// account index.
-pub trait Slip10KeyGenerator {
-    /// Derive a MobileCoin SLIP10 key for the given account from the current
-    /// object
-    fn derive_slip10_key(self, account_index: u32) -> Slip10Key;
-}
-
-/// The BIP44 "usage" component of a BIP32 path.
-///
-/// See https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki for more details.
-const USAGE_BIP44: u32 = 44;
-/// The MobileCoin "coin type" component of a BIP32 path.
-///
-/// See https://github.com/satoshilabs/slips/blob/master/slip-0044.md for reference.
-const COINTYPE_MOBILECOIN: u32 = 866;
-
-// This lets us get to
-// Mnemonic::from_phrases().derive_slip10_key(account_index).
-// try_into_account_key(...)
-#[cfg(feature = "tiny-bip39")]
-impl Slip10KeyGenerator for Mnemonic {
-    fn derive_slip10_key(self, account_index: u32) -> Slip10Key {
-        // We explicitly do not support passphrases for BIP-39 mnemonics, please
-        // see the MobileCoin Key Derivation design specification, v1.0.0, for
-        // design rationale.
-        let seed = Seed::new(&self, "");
-
-        // This is constructing an `m/44/866/<idx>` BIP32 path for use by SLIP-0010.
-        let path = [USAGE_BIP44, COINTYPE_MOBILECOIN, account_index];
-
-        // We're taking what the SLIP-0010 spec calls the "Ed25519 private key"
-        // here as our `Slip10Key`. That said, we're not actually using this as
-        // an Ed25519 key, just IKM for a pair of HKDF-SHA512 instances whose
-        // output will be correctly transformed into the Ristretto255 keypair we
-        // need.
-        //
-        // This will also transform any "unhardened" path components into their
-        // "hardened" version.
-        let key = slip10_ed25519::derive_ed25519_private_key(seed.as_bytes(), &path);
-
-        Slip10Key(key)
-    }
-}
-
-
+// Re-export to minimise change propagation
+// TODO: chat about preferred approach to this
+pub use mc_core::slip10::{Slip10Key, Slip10KeyGenerator};
 
 #[cfg(test)]
 mod test {
     use super::*;
     use bip39::Language;
 
-    use mc_account_keys::{AccountKey, Error as AccountKeyError};
+    use mc_core::{
+        Account,
+        slip10::{Slip10Key, Slip10KeyGenerator},
+    };
 
     /// Test vector built using SLIP10 outputs and ristretto vectors
     struct SlipToRistretto {
@@ -229,7 +125,7 @@ mod test {
             let expected_spend_scalar = Scalar::from_bytes_mod_order_wide(&expected_spend_bytes);
             let expected_spend_key = RistrettoPrivate::from(expected_spend_scalar);
 
-            let account_key = AccountKey::from(slip10_key);
+            let account_key = Account::from(&slip10_key);
 
             assert_ne!(
                 AsRef::<[u8]>::as_ref(&expected_view_key),
@@ -237,11 +133,11 @@ mod test {
             );
             assert_eq!(
                 AsRef::<[u8]>::as_ref(&expected_view_key),
-                AsRef::<[u8]>::as_ref(account_key.view_private_key())
+                AsRef::<[u8]>::as_ref(account_key.view_private.as_ref())
             );
             assert_eq!(
                 AsRef::<[u8]>::as_ref(&expected_spend_key),
-                AsRef::<[u8]>::as_ref(account_key.spend_private_key())
+                AsRef::<[u8]>::as_ref(account_key.spend_private.as_ref())
             );
         }
     }
@@ -631,7 +527,7 @@ mod test {
             let mnemonic = Mnemonic::from_phrase(data.phrase, Language::English)
                 .expect("Could not read test phrase into mnemonic");
             let key = mnemonic.derive_slip10_key(data.account_index);
-            let account_key = AccountKey::from(key);
+            let account_key = Account:from(&key);
 
             let mut expected_view_bytes = [0u8; 64];
             hex::decode_to_slice(data.view_hex, &mut expected_view_bytes)
@@ -651,11 +547,11 @@ mod test {
             );
             assert_eq!(
                 AsRef::<[u8]>::as_ref(&expected_view_key),
-                AsRef::<[u8]>::as_ref(account_key.view_private_key())
+                AsRef::<[u8]>::as_ref(account_key.view_private.as_ref())
             );
             assert_eq!(
                 AsRef::<[u8]>::as_ref(&expected_spend_key),
-                AsRef::<[u8]>::as_ref(account_key.spend_private_key())
+                AsRef::<[u8]>::as_ref(account_key.spend_private.as_ref())
             );
         }
     }

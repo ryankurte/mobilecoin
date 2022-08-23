@@ -1,12 +1,14 @@
 // Copyright (c) 2018-2022 The MobileCoin Foundation
 
+use core::fmt::Debug;
+
 use curve25519_dalek::ristretto::RistrettoPoint;
 use mc_crypto_digestible::Digestible;
 use mc_crypto_hashes::{Blake2b512, Digest};
 use mc_crypto_keys::{CompressedRistrettoPublic, RistrettoPrivate, RistrettoPublic};
 
 use rand_core::{CryptoRng, RngCore};
-use zeroize::Zeroizing;
+use zeroize::{Zeroizing, Zeroize};
 
 #[cfg(feature = "alloc")]
 use alloc::{vec, vec::Vec};
@@ -67,6 +69,7 @@ pub struct RingMLSAG {
     #[cfg_attr(feature = "prost", prost(message, required, tag = "3"))]
     pub key_image: KeyImage,
 }
+
 
 impl RingMLSAG {
     /// Sign a ring of input addresses and amount commitments.
@@ -142,114 +145,29 @@ impl RingMLSAG {
         check_value_is_preserved: bool,
         // Note: this `mut rng` can just be `rng` if this is merged upstream:
         // https://github.com/dalek-cryptography/curve25519-dalek/pull/394
-        mut rng: &mut dyn CryptoRngCore,
+        rng: &mut dyn CryptoRngCore,
     ) -> Result<Self, Error> {
         let ring_size = ring.len();
+        
+        // Setup buffers
+        let mut challenges: Vec<Scalar> = vec![Scalar::zero(); ring_size];
+        let mut responses: Vec<CurveScalar> = vec![CurveScalar::from(Scalar::zero()); 2 * ring_size];
+        let mut decompressed_ring = vec![(RistrettoPublic::default(), Commitment::default()); ring_size];
 
-        if real_index >= ring_size {
-            return Err(Error::IndexOutOfBounds);
-        }
+        // Call signer
+        let key_image = mlsag_sign_internal(message, ring, real_index, onetime_private_key, value, blinding, output_blinding, generator, check_value_is_preserved, rng, &mut decompressed_ring, &mut challenges, &mut responses)?;
 
-        let G = B_BLINDING;
-        debug_assert!(
-            generator.B_blinding == G,
-            "basepoint for blindings mismatch"
-        );
-
-        let key_image = KeyImage::from(onetime_private_key);
-
-        // The uncompressed key_image.
-        let I: RistrettoPoint = key_image.point.decompress().ok_or(Error::InvalidKeyImage)?;
-
-        // Uncompressed output commitment.
-        // This ensures that each address and commitment encodes a valid Ristretto
-        // point.
-        let output_commitment = Commitment::new(value, *output_blinding, generator);
-
-        // Ring must decompress.
-        let decompressed_ring = decompress_ring(ring)?;
-
-        // Challenges `c_0, ... c_{ring_size - 1}`.
-        let mut c: Vec<Scalar> = vec![Scalar::zero(); ring_size];
-
-        // Responses `r_{0,0}, r_{0,1}, ... , r_{ring_size-1,0}, r_{ring_size-1,1}`.
-        let mut r: Vec<Scalar> = vec![Scalar::zero(); 2 * ring_size];
-        for i in 0..ring_size {
-            if i == real_index {
-                continue;
-            }
-            r[2 * i] = Scalar::random(&mut rng);
-            r[2 * i + 1] = Scalar::random(&mut rng);
-        }
-
-        let alpha_0 = Zeroizing::new(Scalar::random(&mut rng));
-        let alpha_1 = Zeroizing::new(Scalar::random(&mut rng));
-
-        for n in 0..ring_size {
-            // Iterate around the ring, starting at real_index.
-            let i = (real_index + n) % ring_size;
-            let (P_i, input_commitment) = &decompressed_ring[i];
-
-            let (L0, R0, L1) = if i == real_index {
-                // c_{i+1} = Hn( m | key_image | alpha_0 * G | alpha_0 * Hp(P_i) | alpha_1 * G )
-                //         = Hn( m | key_image |      L0     |         R0        |      L1     )
-                //
-                // where P_i is the i^th onetime public key.
-                // There is no R1 term because no key image is needed for the commitment to
-                // zero.
-
-                let L0 = *alpha_0 * G;
-                let R0 = *alpha_0 * hash_to_point(P_i);
-                let L1 = *alpha_1 * G;
-                (L0, R0, L1)
-            } else {
-                // c_{i+1} = Hn( m | key_image | r_{i,0} * G + c_i * P_i | r_{i,0} * Hp(P_i) +
-                // c_i * I | r_{i,1} * G + c_i * Z_i )         = Hn( m |
-                // key_image |           L0            |               R0            |
-                // L1          )
-                //
-                // where:
-                // * P_i is the i^th onetime public key.
-                // * I is the key image of the real input's private key,
-                // * Z_i is the i^th "commitment to zero" = output_commitment -
-                //   input_commitment.
-                //
-                // There is no R1 term because no key image is needed for the commitment to
-                // zero.
-
-                let L0 = r[2 * i] * G + c[i] * P_i.as_ref();
-                let R0 = r[2 * i] * hash_to_point(P_i) + c[i] * I;
-                let L1 =
-                    r[2 * i + 1] * G + c[i] * (output_commitment.point - input_commitment.point);
-                (L0, R0, L1)
-            };
-
-            c[(i + 1) % ring_size] = challenge(message, &key_image, &L0, &R0, &L1);
-        }
-
-        // "Close the loop" by computing responses for the real index.
-
-        let s: Scalar = *onetime_private_key.as_ref();
-        r[2 * real_index] = *alpha_0 - c[real_index] * s;
-
-        let z: Scalar = output_blinding - blinding;
-        r[2 * real_index + 1] = *alpha_1 - c[real_index] * z;
-
-        if check_value_is_preserved {
-            let (_, input_commitment) = decompressed_ring[real_index];
-            let difference: RistrettoPoint = output_commitment.point - input_commitment.point;
-            if difference != (z * G) {
-                return Err(Error::ValueNotConserved);
-            }
-        }
-
-        let responses: Vec<CurveScalar> = r.into_iter().map(CurveScalar::from).collect();
-
-        Ok(RingMLSAG {
-            c_zero: CurveScalar::from(c[0]),
+        let res = RingMLSAG {
+            c_zero: CurveScalar::from(challenges[0]),
             responses,
             key_image,
-        })
+        };
+
+        // Zeroize buffers
+        challenges.iter_mut().for_each(|v| v.zeroize() );
+        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
+
+        Ok(res)
     }
 
     /// Verify MLSAG signature.
@@ -265,81 +183,355 @@ impl RingMLSAG {
         output_commitment: &CompressedCommitment,
     ) -> Result<(), Error> {
         let ring_size = ring.len();
-        // `responses` must contain `2 * ring_size` elements.
-        if self.responses.len() != 2 * ring_size {
-            return Err(Error::LengthMismatch(2 * ring_size, self.responses.len()));
+
+        // Setup buffers for recomputed_c and decompressed rings
+        let mut recomputed_c = vec![Scalar::zero(); ring_size];
+        let mut decompressed_ring = vec![(RistrettoPublic::default(), Commitment::default()); ring_size];
+
+        // Execute verification
+        let res = mlsag_verify_internal(&self.key_image, &self.c_zero, message, ring, &self.responses, output_commitment, &mut recomputed_c, &mut decompressed_ring);
+
+        // Zeroize buffers
+        recomputed_c.iter_mut().for_each(|v| v.zeroize() );
+        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
+
+        res
+    }
+}
+
+pub struct RingMLSAGInternal<R: AsRef<[CurveScalar]> + Debug> {
+    /// The initial challenge `c[0]`.
+    pub c_zero: CurveScalar,
+
+    /// Responses `r_{0,0}, r_{0,1}, ... , r_{ring_size-1,0},
+    /// r_{ring_size-1,1}`.
+    pub responses: R,
+
+    /// Key image "spent" by this signature.
+    pub key_image: KeyImage,
+}
+
+impl RingMLSAGInternal<Vec<CurveScalar>> {
+    /// Verify using internal vectors
+    #[allow(dead_code)]
+    pub fn verify_v(
+        &self,
+        message: &[u8],
+        ring: &[ReducedTxOut],
+        output_commitment: &CompressedCommitment,
+    ) -> Result<(), Error> {
+        let ring_size = ring.len();
+
+        // Setup buffers for recomputed_c and decompressed rings
+        let mut recomputed_c = vec![Scalar::zero(); ring_size];
+        let mut decompressed_ring = vec![(RistrettoPublic::default(), Commitment::default()); ring_size];
+
+        // Call execute verification
+        let res = mlsag_verify_internal(&self.key_image, &self.c_zero, message, ring, &self.responses, output_commitment, &mut recomputed_c, &mut decompressed_ring);
+
+        // Zeroize buffers
+        recomputed_c.iter_mut().for_each(|v| v.zeroize() );
+        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
+
+        res
+    }
+}
+
+impl <const N: usize> RingMLSAGInternal<[CurveScalar; N]> {
+    /// Verify using constant length buffers, note that responses (N) must be 2x ring size (R)
+    #[allow(dead_code)]
+    pub fn verify_n<const R: usize>(&self, message: &[u8], ring: &[ReducedTxOut; R], output_commitment: &CompressedCommitment) -> Result<(), Error> {
+        // Check ring and response sizes match
+        if R != N / 2 {
+            return Err(Error::LengthMismatch(R, N));
         }
 
-        let G = B_BLINDING;
+        // Setup buffers for recomputed_c and decompressed rings
+        let mut recomputed_c = [Scalar::zero(); R];
+        let mut decompressed_ring = [(RistrettoPublic::default(), Commitment::default()); N];
 
-        // The key image must decompress.
-        // This ensures that the key image encodes a valid Ristretto point.
-        let I: RistrettoPoint = self
-            .key_image
-            .point
-            .decompress()
-            .ok_or(Error::InvalidKeyImage)?;
+        // Call execute verification
+        let res = mlsag_verify_internal(&self.key_image, &self.c_zero, message, ring, self.responses.as_ref(), output_commitment, &mut recomputed_c, &mut decompressed_ring);
 
-        let r: Vec<Scalar> = self
-            .responses
-            .iter()
-            .map(|response| response.scalar)
-            .collect();
+        // Zeroize buffers
+        recomputed_c.iter_mut().for_each(|v| v.zeroize() );
+        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
 
-        // Output commitment must decompress.
-        let output_commitment: Commitment = Commitment::try_from(output_commitment)?;
+        res
+    }
 
-        // Ring must decompress.
-        // This ensures that each address and commitment encodes a valid Ristretto
-        // point.
-        let decompressed_ring = decompress_ring(ring)?;
-
-        // Scalars must be canonical.
-        if !self.c_zero.scalar.is_canonical() {
-            return Err(Error::InvalidCurveScalar);
+    /// Sign using constant length buffers
+    #[allow(dead_code)]
+    fn sign_with_balance_check_n<const R: usize>(
+        message: &[u8],
+        ring: &[ReducedTxOut; R],
+        real_index: usize,
+        onetime_private_key: &RistrettoPrivate,
+        value: u64,
+        blinding: &Scalar,
+        output_blinding: &Scalar,
+        generator: &PedersenGens,
+        check_value_is_preserved: bool,
+        // Note: this `mut rng` can just be `rng` if this is merged upstream:
+        // https://github.com/dalek-cryptography/curve25519-dalek/pull/394
+        rng: &mut dyn CryptoRngCore,
+    ) -> Result<Self, Error> {
+        // Check ring and response sizes match
+        if R != N / 2 {
+            return Err(Error::LengthMismatch(R, N));
         }
+        
+        // Setup buffers
+        let mut challenges = [Scalar::zero(); R];
+        let mut responses = [CurveScalar::from(Scalar::zero()); N];
+        let mut decompressed_ring = [(RistrettoPublic::default(), Commitment::default()); R];
 
-        // Scalars must be canonical.
-        for response in &self.responses {
-            if !response.scalar.is_canonical() {
-                return Err(Error::InvalidCurveScalar);
-            }
+        // Call signer
+        let key_image = mlsag_sign_internal(message, ring, real_index, onetime_private_key, value, blinding, output_blinding, generator, check_value_is_preserved, rng, &mut decompressed_ring, &mut challenges, &mut responses)?;
+
+        let res = RingMLSAGInternal {
+            c_zero: CurveScalar::from(challenges[0]),
+            responses,
+            key_image,
+        };
+
+        // Zeroize buffers
+        challenges.iter_mut().for_each(|v| v.zeroize() );
+        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
+
+        Ok(res)
+    }
+}
+
+#[allow(dead_code)]
+struct ConstArrayHack<T, const N: usize> {
+    a: [T; N],
+    b: [T; N],
+}
+
+
+fn mlsag_sign_internal(
+    message: &[u8],
+    ring: &[ReducedTxOut],
+    real_index: usize,
+    onetime_private_key: &RistrettoPrivate,
+    value: u64,
+    blinding: &Scalar,
+    output_blinding: &Scalar,
+    generator: &PedersenGens,
+    check_value_is_preserved: bool,
+    // Note: this `mut rng` can just be `rng` if this is merged upstream:
+    // https://github.com/dalek-cryptography/curve25519-dalek/pull/394
+    mut rng: &mut dyn CryptoRngCore,
+    decompressed_ring: &mut [(RistrettoPublic, Commitment)],
+    challenges: &mut [Scalar],
+    responses: &mut [CurveScalar],
+) -> Result<KeyImage, Error> {
+    let ring_size = ring.len();
+
+    if real_index >= ring_size {
+        return Err(Error::IndexOutOfBounds);
+    }
+
+    // Check buffer lengths are correct
+
+    // `challenges` must contain `ring_size` elements.
+    if challenges.len() != ring_size {
+        return Err(Error::LengthMismatch(ring_size, challenges.len()));
+    }
+
+    // `responses` must contain `2 * ring_size` elements.
+    if responses.len() != 2 * ring_size {
+        return Err(Error::LengthMismatch(2 * ring_size, responses.len()));
+    }
+
+    let G = B_BLINDING;
+    debug_assert!(
+        generator.B_blinding == G,
+        "basepoint for blindings mismatch"
+    );
+
+    let key_image = KeyImage::from(onetime_private_key);
+
+    // The uncompressed key_image.
+    let I: RistrettoPoint = key_image.point.decompress().ok_or(Error::InvalidKeyImage)?;
+
+    // Uncompressed output commitment.
+    // This ensures that each address and commitment encodes a valid Ristretto
+    // point.
+    let output_commitment = Commitment::new(value, *output_blinding, generator);
+
+    // Ring must decompress.
+    decompress_ring_internal(ring, decompressed_ring)?;
+
+    // Challenges `c_0, ... c_{ring_size - 1}`.
+    challenges.iter_mut().for_each(|v| *v = Scalar::zero() );
+    let c = challenges;
+
+    // Responses `r_{0,0}, r_{0,1}, ... , r_{ring_size-1,0}, r_{ring_size-1,1}`.
+    responses.iter_mut().for_each(|v| *v = CurveScalar::from(Scalar::zero()) );
+    let r = responses;
+
+    for i in 0..ring_size {
+        if i == real_index {
+            continue;
         }
+        r[2 * i].scalar = Scalar::random(&mut rng);
+        r[2 * i + 1].scalar = Scalar::random(&mut rng);
+    }
 
-        // Recompute challenges.
-        let mut recomputed_c = vec![Scalar::zero(); ring.len()];
+    let alpha_0 = Zeroizing::new(Scalar::random(&mut rng));
+    let alpha_1 = Zeroizing::new(Scalar::random(&mut rng));
 
-        for (i, (P_i, input_commitment)) in decompressed_ring.iter().enumerate() {
-            let c_i = if i == 0 {
-                // Initialize loop using the signature's c_0 term.
-                self.c_zero.scalar
-            } else {
-                recomputed_c[i]
-            };
+    for n in 0..ring_size {
+        // Iterate around the ring, starting at real_index.
+        let i = (real_index + n) % ring_size;
+        let (P_i, input_commitment) = &decompressed_ring[i];
 
-            // c_{i+1} = Hn( m | key_image |  r_{i,0} * G + c_i * P_i | r_{i,0} * Hp(P_i) +
-            // c_i * I | r_{i,1} * G + c_i * Z_i )         = Hn( m | key_image |
-            // L0            |               R0            |           L1            )
+        let (L0, R0, L1) = if i == real_index {
+            // c_{i+1} = Hn( m | key_image | alpha_0 * G | alpha_0 * Hp(P_i) | alpha_1 * G )
+            //         = Hn( m | key_image |      L0     |         R0        |      L1     )
+            //
+            // where P_i is the i^th onetime public key.
+            // There is no R1 term because no key image is needed for the commitment to
+            // zero.
+
+            let L0 = *alpha_0 * G;
+            let R0 = *alpha_0 * hash_to_point(P_i);
+            let L1 = *alpha_1 * G;
+            (L0, R0, L1)
+        } else {
+            // c_{i+1} = Hn( m | key_image | r_{i,0} * G + c_i * P_i | r_{i,0} * Hp(P_i) +
+            // c_i * I | r_{i,1} * G + c_i * Z_i )         = Hn( m |
+            // key_image |           L0            |               R0            |
+            // L1          )
             //
             // where:
             // * P_i is the i^th onetime public key.
             // * I is the key image of the real input's private key,
-            // * Z_i is the i^th "commitment to zero" = output_commitment - i^th
+            // * Z_i is the i^th "commitment to zero" = output_commitment -
             //   input_commitment.
+            //
+            // There is no R1 term because no key image is needed for the commitment to
+            // zero.
 
-            let L0 = r[2 * i] * G + c_i * P_i.as_ref();
-            let R0 = r[2 * i] * hash_to_point(P_i) + c_i * I;
-            let L1 = r[2 * i + 1] * G + c_i * (output_commitment.point - input_commitment.point);
+            let L0 = r[2 * i].scalar * G + c[i] * P_i.as_ref();
+            let R0 = r[2 * i].scalar * hash_to_point(P_i) + c[i] * I;
+            let L1 =
+                r[2 * i + 1].scalar * G + c[i] * (output_commitment.point - input_commitment.point);
+            (L0, R0, L1)
+        };
 
-            recomputed_c[(i + 1) % ring_size] = challenge(message, &self.key_image, &L0, &R0, &L1);
-        }
+        c[(i + 1) % ring_size] = challenge(message, &key_image, &L0, &R0, &L1);
+    }
 
-        if self.c_zero.scalar == recomputed_c[0] {
-            Ok(())
-        } else {
-            Err(Error::InvalidSignature)
+    // "Close the loop" by computing responses for the real index.
+
+    let s: Scalar = *onetime_private_key.as_ref();
+    r[2 * real_index].scalar = *alpha_0 - c[real_index] * s;
+
+    let z: Scalar = output_blinding - blinding;
+    r[2 * real_index + 1].scalar = *alpha_1 - c[real_index] * z;
+
+    if check_value_is_preserved {
+        let (_, input_commitment) = decompressed_ring[real_index];
+        let difference: RistrettoPoint = output_commitment.point - input_commitment.point;
+        if difference != (z * G) {
+            return Err(Error::ValueNotConserved);
         }
     }
+
+    Ok(key_image)
+}
+
+/// mlsag verification logic, buffer based for no_std compatibility
+fn mlsag_verify_internal(
+    key_image: &KeyImage,
+    c_zero: &CurveScalar,
+    message: &[u8],
+    ring: &[ReducedTxOut],
+    responses: &[CurveScalar],
+    output_commitment: &CompressedCommitment,
+    recomputed_c: &mut [Scalar],
+    decompressed_ring: &mut [(RistrettoPublic, Commitment)],
+) -> Result<(), Error> {
+
+    let ring_size = ring.len();
+    // `responses` must contain `2 * ring_size` elements.
+    if responses.len() != 2 * ring_size {
+        return Err(Error::LengthMismatch(2 * ring_size, responses.len()));
+    }
+    // `recomputed_c` buffer must contain `ring_size` elements.
+    if recomputed_c.len() != ring_size {
+        return Err(Error::LengthMismatch(ring_size, recomputed_c.len()));
+    }
+
+    let G = B_BLINDING;
+
+    // The key image must decompress.
+    // This ensures that the key image encodes a valid Ristretto point.
+    let I: RistrettoPoint = key_image
+        .point
+        .decompress()
+        .ok_or(Error::InvalidKeyImage)?;
+
+    // Output commitment must decompress.
+    let output_commitment: Commitment = Commitment::try_from(output_commitment)?;
+
+    // Ring must decompress.
+    // This ensures that each address and commitment encodes a valid Ristretto
+    // point.
+    decompress_ring_internal(ring, decompressed_ring)?;
+
+    // Scalars must be canonical.
+    if !c_zero.scalar.is_canonical() {
+        return Err(Error::InvalidCurveScalar);
+    }
+
+    // Scalars must be canonical.
+    for response in responses {
+        if !response.scalar.is_canonical() {
+            return Err(Error::InvalidCurveScalar);
+        }
+    }
+
+    // Recompute challenges.
+    recomputed_c.iter_mut().for_each(|v| *v = Scalar::zero() );
+
+    for (i, (P_i, input_commitment)) in decompressed_ring.iter().enumerate() {
+        let c_i = if i == 0 {
+            // Initialize loop using the signature's c_0 term.
+            c_zero.scalar
+        } else {
+            recomputed_c[i]
+        };
+
+        // c_{i+1} = Hn( m | key_image |  r_{i,0} * G + c_i * P_i | r_{i,0} * Hp(P_i) +
+        // c_i * I | r_{i,1} * G + c_i * Z_i )         = Hn( m | key_image |
+        // L0            |               R0            |           L1            )
+        //
+        // where:
+        // * P_i is the i^th onetime public key.
+        // * I is the key image of the real input's private key,
+        // * Z_i is the i^th "commitment to zero" = output_commitment - i^th
+        //   input_commitment.
+
+        let L0 = responses[2 * i].scalar * G + c_i * P_i.as_ref();
+        let R0 = responses[2 * i].scalar * hash_to_point(P_i) + c_i * I;
+        let L1 = responses[2 * i + 1].scalar * G + c_i * (output_commitment.point - input_commitment.point);
+
+        recomputed_c[(i + 1) % ring_size] = challenge(message, &key_image, &L0, &R0, &L1);
+    }
+
+    let res = match c_zero.scalar == recomputed_c[0] {
+        true => Ok(()),
+        false => Err(Error::InvalidSignature),
+    };
+
+    // Clear challenge buffer
+    recomputed_c.iter_mut().for_each(|v| *v = Scalar::zero() );
+
+    res
 }
 
 // Compute the "challenge" H( message | key_image | L0 | R0 | L1 ).
@@ -360,16 +552,28 @@ fn challenge(
     Scalar::from_hash(hasher)
 }
 
+/// Decompress a ring
+#[allow(dead_code)]
 fn decompress_ring(ring: &[ReducedTxOut]) -> Result<Vec<(RistrettoPublic, Commitment)>, Error> {
+    let mut decompressed_ring = vec![(RistrettoPublic::default(), Commitment::default()); ring.len()];
+    decompress_ring_internal(ring, &mut decompressed_ring)?;
+    Ok(decompressed_ring)
+}
+
+/// Decompress a ring into the provided buffer
+fn decompress_ring_internal(ring: &[ReducedTxOut], decompressed_ring: &mut [(RistrettoPublic, Commitment)]) -> Result<(), Error> {
+    if ring.len() != decompressed_ring.len() {
+        return Err(Error::LengthMismatch(ring.len(), decompressed_ring.len()));
+    }
+
     // Ring must decompress.
-    let mut decompressed_ring: Vec<(RistrettoPublic, Commitment)> = Vec::new();
-    for tx_out in ring {
+    for (i, tx_out) in ring.iter().enumerate() {
         let ristretto_public =
             RistrettoPublic::try_from(&tx_out.target_key).map_err(|_e| Error::InvalidCurvePoint)?;
         let commitment = Commitment::try_from(&tx_out.commitment)?;
-        decompressed_ring.push((ristretto_public, commitment));
+        decompressed_ring[i] = (ristretto_public, commitment);
     }
-    Ok(decompressed_ring)
+    Ok(())
 }
 
 #[cfg(test)]

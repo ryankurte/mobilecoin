@@ -26,3 +26,4 @@ pub const CHANGE_SUBADDRESS_INDEX: u64 = u64::MAX - 1;
 /// The subaddress derived using u64::MAX - 2 is the reserved subaddress
 /// for gift code TxOuts to be sent as specified in MCIP #32.
 pub const GIFT_CODE_SUBADDRESS_INDEX: u64 = u64::MAX - 2;
+

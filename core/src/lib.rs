@@ -16,6 +16,8 @@ pub use keys::*;
 pub mod subaddress;
 pub use subaddress::Subaddress;
 
+pub mod tx;
+
 pub mod slip10;
 
 /// Mobilecoin basic account object.

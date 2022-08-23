@@ -3203,6 +3203,7 @@ dependencies = [
  "prost",
  "rand_core 0.6.3",
  "serde",
+ "static_assertions",
  "subtle",
  "tempdir",
  "zeroize",

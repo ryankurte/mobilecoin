@@ -665,6 +665,23 @@ cfg_if! {
 }
 
 cfg_if! {
+    if #[cfg(feature = "heapless")] {
+
+        // Forward from [`heapless::Vec<T>`] to &[T] impl
+        impl<T: Digestible, const N: usize> Digestible for heapless::Vec<T, N> {
+            #[inline]
+            fn append_to_transcript<DT: DigestTranscript>(&self, context: &'static [u8], transcript: &mut DT) {
+                <Self as AsRef<[T]>>::as_ref(self).append_to_transcript(context, transcript);
+            }
+            #[inline]
+            fn append_to_transcript_allow_omit<DT: DigestTranscript>(&self, context: &'static [u8], transcript: &mut DT) {
+                <Self as AsRef<[T]>>::as_ref(self).append_to_transcript_allow_omit(context, transcript);
+            }
+        }
+    }
+}
+
+cfg_if! {
     if #[cfg(feature = "dalek")] {
         /// Add support for Dalek primitives
         ///

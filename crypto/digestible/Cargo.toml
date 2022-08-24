@@ -9,6 +9,7 @@ edition = "2021"
 cfg-if = "1.0"
 generic-array = "0.14"
 merlin = { version = "3.0", default-features = false }
+heapless = { version = "*", optional = true }
 
 # For derive support
 mc-crypto-digestible-derive = { path = "./derive", optional = true }

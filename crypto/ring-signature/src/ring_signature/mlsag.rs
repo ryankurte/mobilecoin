@@ -11,7 +11,18 @@ use rand_core::{CryptoRng, RngCore};
 use zeroize::{Zeroizing, Zeroize};
 
 #[cfg(feature = "alloc")]
-use alloc::{vec, vec::Vec};
+use alloc::{vec::Vec};
+
+/// Maximum number of txouts in ring signature
+const MAX_TXOUTS: usize = 20;
+
+/// Maximum number of challenges in ring signature
+const MAX_RESPONSES: usize = MAX_TXOUTS * 2;
+
+
+#[cfg(all(feature = "heapless", not(feature = "alloc")))]
+type Vec<T> = heapless::Vec<T, MAX_RESPONSES>;
+
 
 #[cfg(feature = "prost")]
 use prost::Message;
@@ -48,6 +59,7 @@ pub struct ReducedTxOut {
     /// The tx_out.masked_amount.commitment field
     pub commitment: CompressedCommitment,
 }
+
 
 /// MLSAG for a ring of public keys and amount commitments.
 /// Note: Serialize and Deserialize appear to be cruft left over from
@@ -133,6 +145,7 @@ impl RingMLSAG {
     // * `check_value_is_preserved` - If true, check that the value of inputs equals
     //   value of outputs.
     // * `rng` - Randomness.
+    #[allow(unreachable_code, unused_variables)]
     fn sign_with_balance_check(
         message: &[u8],
         ring: &[ReducedTxOut],
@@ -150,9 +163,26 @@ impl RingMLSAG {
         let ring_size = ring.len();
         
         // Setup buffers
-        let mut challenges: Vec<Scalar> = vec![Scalar::zero(); ring_size];
-        let mut responses: Vec<CurveScalar> = vec![CurveScalar::from(Scalar::zero()); 2 * ring_size];
-        let mut decompressed_ring = vec![(RistrettoPublic::default(), Commitment::default()); ring_size];
+        #[cfg(feature = "alloc")]
+        let (mut challenges, mut responses, mut decompressed_ring) = (
+            vec![Scalar::zero(); ring_size],
+            vec![CurveScalar::from(Scalar::zero()); 2 * ring_size],
+            vec![(RistrettoPublic::default(), Commitment::default()); ring_size],
+        );
+        
+        #[cfg(all(feature = "heapless", not(feature = "alloc")))]
+        let (mut challenges, mut responses, mut decompressed_ring) = (
+            heapless::Vec::<_, MAX_TXOUTS>::new(),
+            heapless::Vec::<_, MAX_RESPONSES>::new(),
+            heapless::Vec::<_, MAX_TXOUTS>::new(),
+        );
+
+        #[cfg(all(feature = "heapless", not(feature = "alloc")))]
+        {
+            challenges.resize(ring_size, Scalar::zero()).unwrap();
+            responses.resize(ring_size * 2, CurveScalar::from(Scalar::zero())).unwrap();
+            decompressed_ring.resize_default(ring_size).unwrap();
+        }
 
         // Call signer
         let key_image = mlsag_sign_internal(message, ring, real_index, onetime_private_key, value, blinding, output_blinding, generator, check_value_is_preserved, rng, &mut decompressed_ring, &mut challenges, &mut responses)?;
@@ -185,8 +215,17 @@ impl RingMLSAG {
         let ring_size = ring.len();
 
         // Setup buffers for recomputed_c and decompressed rings
-        let mut recomputed_c = vec![Scalar::zero(); ring_size];
-        let mut decompressed_ring = vec![(RistrettoPublic::default(), Commitment::default()); ring_size];
+        #[cfg(feature = "alloc")]
+        let (mut recomputed_c, mut decompressed_ring) = 
+            (Vec::with_capacity(ring_size), Vec::with_capacity(ring_size));
+
+        #[cfg(all(feature = "heapless", not(feature = "alloc")))]
+        let (mut recomputed_c, mut decompressed_ring) = (Vec::new(), Vec::new());
+
+        for _i in 0..ring_size {
+            let _ = recomputed_c.push(Scalar::zero());
+            let _ = decompressed_ring.push((RistrettoPublic::default(), Commitment::default()));
+        }
 
         // Execute verification
         let res = mlsag_verify_internal(&self.key_image, &self.c_zero, message, ring, &self.responses, output_commitment, &mut recomputed_c, &mut decompressed_ring);
@@ -197,116 +236,6 @@ impl RingMLSAG {
 
         res
     }
-}
-
-pub struct RingMLSAGInternal<R: AsRef<[CurveScalar]> + Debug> {
-    /// The initial challenge `c[0]`.
-    pub c_zero: CurveScalar,
-
-    /// Responses `r_{0,0}, r_{0,1}, ... , r_{ring_size-1,0},
-    /// r_{ring_size-1,1}`.
-    pub responses: R,
-
-    /// Key image "spent" by this signature.
-    pub key_image: KeyImage,
-}
-
-impl RingMLSAGInternal<Vec<CurveScalar>> {
-    /// Verify using internal vectors
-    #[allow(dead_code)]
-    pub fn verify_v(
-        &self,
-        message: &[u8],
-        ring: &[ReducedTxOut],
-        output_commitment: &CompressedCommitment,
-    ) -> Result<(), Error> {
-        let ring_size = ring.len();
-
-        // Setup buffers for recomputed_c and decompressed rings
-        let mut recomputed_c = vec![Scalar::zero(); ring_size];
-        let mut decompressed_ring = vec![(RistrettoPublic::default(), Commitment::default()); ring_size];
-
-        // Call execute verification
-        let res = mlsag_verify_internal(&self.key_image, &self.c_zero, message, ring, &self.responses, output_commitment, &mut recomputed_c, &mut decompressed_ring);
-
-        // Zeroize buffers
-        recomputed_c.iter_mut().for_each(|v| v.zeroize() );
-        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
-
-        res
-    }
-}
-
-impl <const N: usize> RingMLSAGInternal<[CurveScalar; N]> {
-    /// Verify using constant length buffers, note that responses (N) must be 2x ring size (R)
-    #[allow(dead_code)]
-    pub fn verify_n<const R: usize>(&self, message: &[u8], ring: &[ReducedTxOut; R], output_commitment: &CompressedCommitment) -> Result<(), Error> {
-        // Check ring and response sizes match
-        if R != N / 2 {
-            return Err(Error::LengthMismatch(R, N));
-        }
-
-        // Setup buffers for recomputed_c and decompressed rings
-        let mut recomputed_c = [Scalar::zero(); R];
-        let mut decompressed_ring = [(RistrettoPublic::default(), Commitment::default()); N];
-
-        // Call execute verification
-        let res = mlsag_verify_internal(&self.key_image, &self.c_zero, message, ring, self.responses.as_ref(), output_commitment, &mut recomputed_c, &mut decompressed_ring);
-
-        // Zeroize buffers
-        recomputed_c.iter_mut().for_each(|v| v.zeroize() );
-        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
-
-        res
-    }
-
-    /// Sign using constant length buffers
-    #[allow(dead_code)]
-    fn sign_with_balance_check_n<const R: usize>(
-        message: &[u8],
-        ring: &[ReducedTxOut; R],
-        real_index: usize,
-        onetime_private_key: &RistrettoPrivate,
-        value: u64,
-        blinding: &Scalar,
-        output_blinding: &Scalar,
-        generator: &PedersenGens,
-        check_value_is_preserved: bool,
-        // Note: this `mut rng` can just be `rng` if this is merged upstream:
-        // https://github.com/dalek-cryptography/curve25519-dalek/pull/394
-        rng: &mut dyn CryptoRngCore,
-    ) -> Result<Self, Error> {
-        // Check ring and response sizes match
-        if R != N / 2 {
-            return Err(Error::LengthMismatch(R, N));
-        }
-        
-        // Setup buffers
-        let mut challenges = [Scalar::zero(); R];
-        let mut responses = [CurveScalar::from(Scalar::zero()); N];
-        let mut decompressed_ring = [(RistrettoPublic::default(), Commitment::default()); R];
-
-        // Call signer
-        let key_image = mlsag_sign_internal(message, ring, real_index, onetime_private_key, value, blinding, output_blinding, generator, check_value_is_preserved, rng, &mut decompressed_ring, &mut challenges, &mut responses)?;
-
-        let res = RingMLSAGInternal {
-            c_zero: CurveScalar::from(challenges[0]),
-            responses,
-            key_image,
-        };
-
-        // Zeroize buffers
-        challenges.iter_mut().for_each(|v| v.zeroize() );
-        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
-
-        Ok(res)
-    }
-}
-
-#[allow(dead_code)]
-struct ConstArrayHack<T, const N: usize> {
-    a: [T; N],
-    b: [T; N],
 }
 
 
@@ -552,14 +481,6 @@ fn challenge(
     Scalar::from_hash(hasher)
 }
 
-/// Decompress a ring
-#[allow(dead_code)]
-fn decompress_ring(ring: &[ReducedTxOut]) -> Result<Vec<(RistrettoPublic, Commitment)>, Error> {
-    let mut decompressed_ring = vec![(RistrettoPublic::default(), Commitment::default()); ring.len()];
-    decompress_ring_internal(ring, &mut decompressed_ring)?;
-    Ok(decompressed_ring)
-}
-
 /// Decompress a ring into the provided buffer
 fn decompress_ring_internal(ring: &[ReducedTxOut], decompressed_ring: &mut [(RistrettoPublic, Commitment)]) -> Result<(), Error> {
     if ring.len() != decompressed_ring.len() {
@@ -580,12 +501,17 @@ fn decompress_ring_internal(ring: &[ReducedTxOut], decompressed_ring: &mut [(Ris
 mod mlsag_tests {
     use super::*;
     use crate::generators;
-    use alloc::vec::Vec;
     use curve25519_dalek::ristretto::CompressedRistretto;
     use mc_crypto_keys::{CompressedRistrettoPublic, RistrettoPrivate, RistrettoPublic};
     use mc_util_from_random::FromRandom;
     use mc_util_test_helper::{RngCore, RngType, SeedableRng};
     use proptest::prelude::*;
+
+    #[cfg(feature = "alloc")]
+    use alloc::vec::Vec;
+
+    #[cfg(all(feature = "heapless", not(feature = "alloc")))]
+    type Vec<T> = heapless::Vec<T, 22>;
 
     #[derive(Clone)]
     struct RingMLSAGParameters {
@@ -619,7 +545,7 @@ mod mlsag_tests {
                     let blinding = Scalar::random(rng);
                     CompressedCommitment::new(value, blinding, &generator)
                 };
-                ring.push(ReducedTxOut {
+                let _ = ring.push(ReducedTxOut {
                     public_key,
                     target_key,
                     commitment,
@@ -642,7 +568,7 @@ mod mlsag_tests {
             };
 
             let real_index = rng.next_u64() as usize % (num_mixins + 1);
-            ring.insert(real_index, reduced_tx_out);
+            let _ = ring.insert(real_index, reduced_tx_out);
             assert_eq!(ring.len(), num_mixins + 1);
 
             Self {
@@ -1044,7 +970,7 @@ mod mlsag_tests {
             // Modify the signature to have too many responses.
             {
                 let mut invalid_signature = signature;
-                invalid_signature.responses.push(CurveScalar::from_random(&mut rng));
+                let _ = invalid_signature.responses.push(CurveScalar::from_random(&mut rng));
 
                 let result =
                     invalid_signature.verify(&params.message, &params.ring, &output_commitment);

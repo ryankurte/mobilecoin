@@ -32,6 +32,7 @@ impl KeyImage {
     }
 
     /// Copies `self` into a new Vec.
+    #[cfg(feature = "alloc")]
     pub fn to_vec(&self) -> alloc::vec::Vec<u8> {
         self.point.as_bytes().to_vec()
     }

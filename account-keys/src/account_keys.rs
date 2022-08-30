@@ -27,7 +27,10 @@ use alloc::{
 
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
 use mc_account_keys_types::RingCtAddress;
-use mc_core::{RootViewPrivate, RootSpendPrivate, slip10::Slip10Key};
+use mc_core::{
+    keys::{RootViewPrivate, RootSpendPrivate},
+    slip10::Slip10Key,
+};
 use mc_crypto_digestible::Digestible;
 use mc_crypto_hashes::{Blake2b512, Digest};
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic};

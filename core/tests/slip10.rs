@@ -8,7 +8,7 @@ use curve25519_dalek::scalar::Scalar;
 use mc_crypto_keys::{RistrettoPrivate};
 
 use mc_core::{
-    Account,
+    account::Account,
     slip10::{Slip10Key, Slip10KeyGenerator},
 };
 

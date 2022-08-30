@@ -6,8 +6,12 @@ use zeroize::Zeroize;
 
 use mc_crypto_keys::{RistrettoPublic};
 use mc_crypto_ring_signature::{
-    CryptoRngCore, Error, Scalar, MlsagSign, MlsagVerify, 
+    CryptoRngCore, Error, Scalar,
     ReducedTxOut, CompressedCommitment, Commitment,
+};
+
+pub use mc_crypto_ring_signature::{
+    MlsagSign, MlsagVerify,
 };
 
 use mc_crypto_ring_signature::{CurveScalar, KeyImage};

@@ -11,7 +11,7 @@ use mc_crypto_keys::{RistrettoPrivate};
 pub use bip39::Mnemonic;
 
 use crate::{
-    Account,
+    account::Account,
     consts::{COINTYPE_MOBILECOIN, USAGE_BIP44},
     keys::{RootSpendPrivate, RootViewPrivate},
 };

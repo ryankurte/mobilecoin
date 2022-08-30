@@ -140,3 +140,73 @@ impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPrivate> {
         RistrettoPublic::from(&self.key) == RistrettoPublic::from(&other.key)
     }
 }
+
+#[cfg(feature = "serde")]
+impl <ADDR, KIND> serde::ser::Serialize for Key<ADDR, KIND, RistrettoPrivate> {
+    fn serialize<S: serde::ser::Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(&self.key.to_bytes())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl <ADDR, KIND> serde::ser::Serialize for Key<ADDR, KIND, RistrettoPublic> {
+    fn serialize<S: serde::ser::Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(&self.key.to_bytes())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl <'de, ADDR, KIND, KEY> serde::de::Deserialize<'de> for Key<ADDR, KIND, KEY> 
+where
+    KEY: Default + Zeroize + TryFrom<&'de [u8]>,
+    <KEY as TryFrom<&'de [u8]>>::Error: core::fmt::Display,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de> 
+    {
+        let key = deserializer.deserialize_bytes(KeyVisitor::<KEY>(PhantomData))?;
+
+        Ok(Self{ key, _addr: PhantomData, _kind: PhantomData  })
+    }
+}
+
+/// Serde visitor for types supporting `TryFrom<&[u8]>`
+#[cfg(feature = "serde")]
+struct KeyVisitor<KEY>(PhantomData<KEY>);
+
+/// Visitor implementation for types supporting `TryFrom<&[u8]>`
+#[cfg(feature = "serde")]
+impl<'de, KEY> serde::de::Visitor<'de> for KeyVisitor<KEY> 
+where
+    KEY: TryFrom<&'de [u8]>,
+    <KEY as TryFrom<&'de [u8]>>::Error: core::fmt::Display,
+{
+    type Value = KEY;
+
+    fn expecting(
+        &self,
+        formatter: &mut ::core::fmt::Formatter,
+    ) -> ::core::fmt::Result {
+        write!(
+            formatter,
+            concat!("A ", stringify!(K), " as array of bytes")
+        )
+    }
+
+    fn visit_borrowed_bytes<E: serde::de::Error>(
+        self,
+        value: &'de [u8],
+    ) -> Result<Self::Value, E> {
+        match Self::Value::try_from(value) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(E::custom(e)),
+        }
+    }
+}

@@ -10,6 +10,7 @@ alloc = [ "serde/alloc", "mc-crypto-digestible/alloc", "mc-util-repr-bytes/alloc
 serde = [ "dep:serde", "curve25519-dalek/serde", "ed25519-dalek/serde" ]
 prost = [ "dep:prost", "mc-crypto-keys/prost" ]
 heapless = [ "dep:heapless", "mc-crypto-digestible/heapless" ]
+internals = []
 default = [ "alloc", "serde", "prost", "mc-util-repr-bytes/default", "mc-crypto-hashes/default" ]
 
 [dependencies]

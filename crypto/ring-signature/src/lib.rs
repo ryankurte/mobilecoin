@@ -6,6 +6,11 @@
 #![no_std]
 #![deny(missing_docs)]
 
+// Hack to allow dead code if we don't have alloc enabled
+// (avoids needing to gate -everything- for now)
+// TODO(@ryankurte): something better...
+#![cfg_attr(not(feature = "alloc"), allow(dead_code))]
+
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
@@ -26,7 +31,12 @@ pub use ring_signature::{
     Scalar,
 };
 
+#[cfg(feature = "alloc")]
 pub use ring_signature::RingMLSAG;
+
+
+#[cfg(feature = "internals")]
+pub use ring_signature::{MlsagSign, MlsagVerify};
 
 /// Get the shared secret for a transaction output.
 ///

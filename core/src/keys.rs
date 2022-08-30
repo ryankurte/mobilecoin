@@ -6,31 +6,6 @@ use zeroize::{Zeroize};
 
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic, KeyError};
 
-/// Subaddress marker type
-#[derive(Copy, Clone, Debug)]
-pub struct Subaddr;
-
-/// Root address marker type
-#[derive(Copy, Clone, Debug)]
-pub struct Root;
-
-/// View key marker type
-#[derive(Copy, Clone, Debug)]
-pub struct View;
-
-/// Spend key marker type
-#[derive(Copy, Clone, Debug)]
-pub struct Spend;
-
-/// Generic key object, see type aliases for use
-#[derive(Clone, Debug, Zeroize)]
-pub struct Key<ADDR, KIND, KEY: Default + Zeroize> {
-    key: KEY,
-    #[zeroize(skip)]
-    _addr: PhantomData<ADDR>,
-    #[zeroize(skip)]
-    _kind: PhantomData<KIND>,
-}
 
 /// Subaddress view private key
 pub type SubaddrViewPrivate = Key<Subaddr, View, RistrettoPrivate>;
@@ -51,6 +26,33 @@ pub type RootSpendPrivate = Key<Root, Spend, RistrettoPrivate>;
 pub type RootViewPublic = Key<Root, View, RistrettoPublic>;
 /// Root spend public key
 pub type RootSpendPublic = Key<Root, Spend, RistrettoPublic>;
+
+
+/// Generic key object, see type aliases for use
+#[derive(Clone, Debug, Zeroize)]
+pub struct Key<ADDR, KIND, KEY: Default + Zeroize> {
+    key: KEY,
+    #[zeroize(skip)]
+    _addr: PhantomData<ADDR>,
+    #[zeroize(skip)]
+    _kind: PhantomData<KIND>,
+}
+
+/// Subaddress marker type
+#[derive(Copy, Clone, Debug)]
+pub struct Subaddr;
+
+/// Root address marker type
+#[derive(Copy, Clone, Debug)]
+pub struct Root;
+
+/// View key marker type
+#[derive(Copy, Clone, Debug)]
+pub struct View;
+
+/// Spend key marker type
+#[derive(Copy, Clone, Debug)]
+pub struct Spend;
 
 
 /// AsRef to internal key type for backwards compatibility

@@ -18,6 +18,7 @@ pub use self::{
     mlsag::{CryptoRngCore, ReducedTxOut},
 };
 
+#[cfg(feature = "alloc")]
 pub use self::mlsag::RingMLSAG;
 
 use crate::domain_separators::HASH_TO_POINT_DOMAIN_TAG;
@@ -27,6 +28,9 @@ use curve25519_dalek::{
 
 #[cfg(feature = "alloc")]
 use curve25519_dalek::traits::MultiscalarMul;
+
+#[cfg(feature = "internals")]
+pub use self::mlsag::{MlsagSign, MlsagVerify};
 
 use mc_crypto_hashes::{Blake2b512, Digest};
 use mc_crypto_keys::RistrettoPublic;

@@ -1,74 +1,22 @@
-//! Mobilecoin core types / functions
-
-#![no_std]
-#![warn(missing_docs)]
-#![deny(unsafe_code)]
-#![allow(non_snake_case)]
-
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
-use core::fmt::Debug;
+//! Account and subaddress objects
+//! 
+//! 
+//! 
 
 use zeroize::Zeroize;
 
-pub mod consts;
-use consts::*;
-
-mod keys;
-pub use keys::*;
-
-pub mod subaddress;
-pub use subaddress::Subaddress;
-
-pub mod account;
-
-pub mod mlsag;
-
-pub mod slip10;
-
-pub mod container;
-
-#[cfg(feature = "protos")]
-pub mod protos;
-
-/// [`Rpc`] trait implemented for protobuf RPC-able types
-#[cfg(feature = "protos")]
-pub trait Rpc<'a>: TryFrom<Self::Message> + 'a {
-    /// Protobuf message for a given RPC object
-    type Message: prost::Message + From<&'a Self> + Default + 'a;
-
-    /// Encode an RPC-able type to vector via `Self::Message`
-    fn encode(&'a self) -> alloc::vec::Vec<u8> {
-        use prost::Message;
-
-        let m = Self::Message::from(self);
-        m.encode_to_vec()
-    }
-
-    /// Decode an RPC-able type via `Self::Message`
-    fn decode(buff: &[u8]) -> Result<Self, RpcError<<Self as TryFrom<Self::Message>>::Error>> {
-        use prost::Message;
-
-        let m = Self::Message::decode(buff).map_err(RpcError::Prost)?;
-        let s = Self::try_from(m).map_err(RpcError::Decode)?;
-        Ok(s)
-    }
-}
-
-/// [`Rpc`] error type wrapping prost and type errors
-#[cfg(feature = "protos")]
-#[derive(Debug, Clone, PartialEq)]
-pub enum RpcError<E> {
-    /// Prost decoding error
-    Prost(prost::DecodeError),
-    /// Type conversion error
-    Decode(E),
-}
+use crate::consts::DEFAULT_SUBADDRESS_INDEX;
+use crate::keys::{
+    RootSpendPrivate,
+    RootViewPrivate,
+    SubaddrSpendPrivate, SubaddrSpendPublic,
+    SubaddrViewPrivate, SubaddrViewPublic,
+};
+use crate::subaddress::Subaddress;
 
 /// Mobilecoin basic account object.
 /// 
-/// Typiclly derived via slip10, and containing root view and spend private keys.
+/// Typically derived via slip10, and containing root view and spend private keys.
 #[derive(Zeroize)]
 pub struct Account {
     /// Root view private key
@@ -78,7 +26,6 @@ pub struct Account {
     // TODO: can we make this non-public?
     pub spend_private: RootSpendPrivate,
 }
-
 
 impl Account {
     /// Create an account from existing private keys
@@ -169,4 +116,3 @@ impl From<&ViewSubaddress> for PublicSubaddress {
         }
     }
 }
-

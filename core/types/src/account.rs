@@ -5,19 +5,27 @@
 
 use zeroize::Zeroize;
 
-use crate::consts::DEFAULT_SUBADDRESS_INDEX;
 use crate::keys::{
-    RootSpendPrivate,
-    RootViewPrivate,
+    RootSpendPrivate, RootViewPrivate,
+    RootSpendPublic, RootViewPublic,
     SubaddrSpendPrivate, SubaddrSpendPublic,
     SubaddrViewPrivate, SubaddrViewPublic,
 };
-use crate::subaddress::Subaddress;
+
+/// An object which represents a subaddress, and has RingCT-style
+/// view and spend public keys.
+pub trait RingCtAddress {
+    /// Get the subaddress' view public key
+    fn view_public_key(&self) -> SubaddrViewPublic;
+    /// Get the subaddress' spend public key
+    fn spend_public_key(&self) -> SubaddrSpendPublic;
+}
+
 
 /// Mobilecoin basic account object.
 /// 
 /// Typically derived via slip10, and containing root view and spend private keys.
-#[derive(Zeroize)]
+#[derive(Debug, Zeroize)]
 pub struct Account {
     /// Root view private key
     // TODO: can we make this non-public?
@@ -33,22 +41,17 @@ impl Account {
         Self { view_private, spend_private }
     }
 
-    /// Fetch keys for the default subaddress
-    pub fn default_subaddress(&self) -> SpendSubaddress {
-        self.subaddress(DEFAULT_SUBADDRESS_INDEX)
+    /// Fetch account view public key
+    pub fn view_public_key(&self) -> RootViewPublic {
+        RootViewPublic::from(&self.view_private)
+    }
+
+    /// Fetch account spend public key
+    pub fn spend_public_key(&self) -> RootSpendPublic {
+        RootSpendPublic::from(&self.spend_private)
     }
 }
 
-impl Subaddress for Account {
-    type Output = SpendSubaddress;
-
-    /// Fetch private keys for the i^th subaddress
-    fn subaddress(&self, index: u64) -> Self::Output {
-        let (view_private, spend_private) = (&self.view_private, &self.spend_private).subaddress(index);
-
-        SpendSubaddress{view_private, spend_private}
-    }
-}
 
 /// Mobilecoin private subaddress object
 #[derive(Clone, Debug, PartialEq)]
@@ -60,14 +63,14 @@ pub struct SpendSubaddress {
 }
 
 
-impl SpendSubaddress {
+impl RingCtAddress for SpendSubaddress {
     /// Fetch view public address
-    pub fn view_public(&self) -> SubaddrViewPublic {
+    fn view_public_key(&self) -> SubaddrViewPublic {
         SubaddrViewPublic::from(&self.view_private)
     }
 
     /// Fetch spend public address
-    pub fn spend_public(&self) -> SubaddrSpendPublic {
+    fn spend_public_key(&self) -> SubaddrSpendPublic {
         SubaddrSpendPublic::from(&self.spend_private)
     }
 }
@@ -81,10 +84,15 @@ pub struct ViewSubaddress {
     pub spend_public: SubaddrSpendPublic,
 }
 
-impl ViewSubaddress {
+impl RingCtAddress for ViewSubaddress {
     /// Fetch view public address
-    pub fn view_public(&self) -> SubaddrViewPublic {
+    fn view_public_key(&self) -> SubaddrViewPublic {
         SubaddrViewPublic::from(&self.view_private)
+    }
+
+    /// Fetch spend public address
+    fn spend_public_key(&self) -> SubaddrSpendPublic {
+        self.spend_public.clone()
     }
 }
 
@@ -97,12 +105,24 @@ pub struct PublicSubaddress {
     pub spend_public: SubaddrSpendPublic,
 }
 
+impl RingCtAddress for PublicSubaddress {
+    /// Fetch view public address
+    fn view_public_key(&self) -> SubaddrViewPublic {
+        self.view_public.clone()
+    }
+
+    /// Fetch spend public address
+    fn spend_public_key(&self) -> SubaddrSpendPublic {
+        self.spend_public.clone()
+    }
+}
+
 /// Create a [`PublicSubaddress`] object from a [`SpendSubaddress`]
 impl From<&SpendSubaddress> for PublicSubaddress {
     fn from(addr: &SpendSubaddress) -> Self {
         Self{ 
-            view_public: addr.view_public(),
-            spend_public: addr.spend_public(),
+            view_public: addr.view_public_key(),
+            spend_public: addr.spend_public_key(),
         }
     }
 }
@@ -111,8 +131,8 @@ impl From<&SpendSubaddress> for PublicSubaddress {
 impl From<&ViewSubaddress> for PublicSubaddress {
     fn from(addr: &ViewSubaddress) -> Self {
         Self{ 
-            view_public: addr.view_public(),
-            spend_public: addr.spend_public.clone(),
+            view_public: addr.view_public_key(),
+            spend_public: addr.spend_public_key(),
         }
     }
 }

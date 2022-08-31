@@ -11,14 +11,12 @@ extern crate alloc;
 #[cfg(feature = "protos")]
 use core::fmt::Debug;
 
-pub mod consts;
+pub use mc_core_types::{keys, account};
 
-pub mod keys;
+pub mod consts;
 
 pub mod subaddress;
 pub use subaddress::Subaddress;
-
-pub mod account;
 
 pub mod mlsag;
 

@@ -5,10 +5,11 @@ use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint};
 use mc_crypto_hashes::{Blake2b512, Digest};
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic};
 
-use crate::consts::*;
-
-use crate::keys::*;
-
+use crate::{
+    account::{Account, SpendSubaddress},
+    consts::SUBADDRESS_DOMAIN_TAG,
+    keys::*,
+};
 
 /// Generate a subaddress for a given input key set
 pub trait Subaddress {
@@ -26,7 +27,7 @@ impl <'a> Subaddress for (&'a RootViewPrivate, &'a RootSpendPrivate) {
     fn subaddress(&self, index: u64) -> Self::Output {
         let (view_private, spend_private) = (&self.0, &self.1);
 
-        let a: &Scalar = view_private.as_ref().as_ref();
+        let a: &Scalar = view_private.as_ref();
 
         // `Hs(a || n)`
         let Hs: Scalar = {
@@ -39,7 +40,7 @@ impl <'a> Subaddress for (&'a RootViewPrivate, &'a RootSpendPrivate) {
         };
 
         // Return private subaddress keys
-        let b: &Scalar = spend_private.as_ref().as_ref();
+        let b: &Scalar = spend_private.as_ref();
         (
             SubaddrViewPrivate::from(RistrettoPrivate::from(a * (Hs + b))),
             SubaddrSpendPrivate::from(RistrettoPrivate::from(Hs + b))
@@ -55,7 +56,7 @@ impl <'a> Subaddress for (&'a RootViewPrivate, &'a RootSpendPublic) {
         let (view_private, spend_public) = (&self.0, &self.1);
 
         // Generate spend public
-        let a: &Scalar = view_private.as_ref().as_ref();
+        let a: &Scalar = view_private.as_ref();
 
         // `Hs(a || n)`
         let Hs: Scalar = {
@@ -71,11 +72,22 @@ impl <'a> Subaddress for (&'a RootViewPrivate, &'a RootSpendPublic) {
         let B = RistrettoPublic::from(&b);
 
         // Return public subaddress keys
-        let C: RistrettoPoint = B.as_ref() + spend_public.as_ref().as_ref();
+        let C: RistrettoPoint = B.as_ref() + spend_public.as_ref();
         (
             SubaddrViewPublic::from(RistrettoPublic::from(a * C)),
             SubaddrSpendPublic::from(RistrettoPublic::from(C)),
         )
+    }
+}
+
+impl Subaddress for Account {
+    type Output = SpendSubaddress;
+
+    /// Fetch private keys for the i^th subaddress
+    fn subaddress(&self, index: u64) -> Self::Output {
+        let (view_private, spend_private) = (&self.view_private, &self.spend_private).subaddress(index);
+
+        SpendSubaddress{view_private, spend_private}
     }
 }
 

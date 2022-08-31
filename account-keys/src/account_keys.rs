@@ -26,10 +26,13 @@ use alloc::{
 };
 
 use curve25519_dalek::{ristretto::RistrettoPoint, scalar::Scalar};
-use mc_account_keys_types::RingCtAddress;
 use mc_core::{
-    keys::{RootViewPrivate, RootSpendPrivate},
+    keys::{
+        RootViewPrivate, RootSpendPrivate,
+        SubaddrViewPublic, SubaddrSpendPublic,
+    },
     slip10::Slip10Key,
+    account::RingCtAddress,
 };
 use mc_crypto_digestible::Digestible;
 use mc_crypto_hashes::{Blake2b512, Digest};
@@ -197,12 +200,12 @@ impl PublicAddress {
 }
 
 impl RingCtAddress for PublicAddress {
-    fn view_public_key(&self) -> &RistrettoPublic {
-        &self.view_public_key
+    fn view_public_key(&self) -> SubaddrViewPublic {
+        self.view_public_key.clone().into()
     }
 
-    fn spend_public_key(&self) -> &RistrettoPublic {
-        &self.spend_public_key
+    fn spend_public_key(&self) -> SubaddrSpendPublic {
+        self.spend_public_key.clone().into()
     }
 }
 

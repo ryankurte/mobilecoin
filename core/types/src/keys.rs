@@ -1,9 +1,9 @@
-//! Mobilecoin basic key types
+//! Basic key types
 
 use core::marker::PhantomData;
 
 use zeroize::{Zeroize};
-
+use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint};
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic, KeyError};
 
 
@@ -62,6 +62,13 @@ impl <ADDR, KIND, KEY: Default + Zeroize> AsRef<KEY> for Key<ADDR, KIND, KEY> {
     }
 }
 
+/// PartialEq against internal key types for backwards compatibility
+impl <ADDR, KIND, KEY: PartialEq + Default + Zeroize> PartialEq<KEY> for Key<ADDR, KIND, KEY> {
+    fn eq(&self, other: &KEY) -> bool {
+        &self.key == other
+    }
+}
+
 /// Create a default key object
 impl <ADDR, KIND, KEY: Default + Zeroize> Default for Key<ADDR, KIND, KEY> {
     fn default() -> Self {
@@ -101,6 +108,14 @@ impl <ADDR, KIND> TryFrom<&[u8; 32]> for Key<ADDR, KIND, RistrettoPublic> {
     }
 }
 
+/// Access underlying [`RistrettoPoint`] for public keys using [`AsRef`]
+impl <ADDR, KIND> AsRef<RistrettoPoint> for Key<ADDR, KIND, RistrettoPublic> {
+    fn as_ref(&self) -> &RistrettoPoint {
+        self.key.as_ref()
+    }
+}
+
+
 /// PartialEq for public key objects
 impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPublic> {
     fn eq(&self, other: &Self) -> bool {
@@ -131,6 +146,13 @@ impl <ADDR, KIND> TryFrom<&[u8; 32]> for Key<ADDR, KIND, RistrettoPrivate> {
     fn try_from(p: &[u8; 32]) -> Result<Self, Self::Error> {
         let key = RistrettoPrivate::try_from(p)?;
         Ok(Self{ key, _addr: PhantomData, _kind: PhantomData })
+    }
+}
+
+/// Access underlying [`Scalar`] for private keys using [`AsRef`]
+impl <ADDR, KIND> AsRef<Scalar> for Key<ADDR, KIND, RistrettoPrivate> {
+    fn as_ref(&self) -> &Scalar {
+        self.key.as_ref()
     }
 }
 

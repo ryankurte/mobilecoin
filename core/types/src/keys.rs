@@ -1,9 +1,10 @@
 //! Basic key types
 
 use core::marker::PhantomData;
+use core::fmt::{Display, Debug};
 
 use zeroize::{Zeroize};
-use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint};
+use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint, digest::typenum::Zero};
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic, KeyError};
 
 
@@ -69,6 +70,28 @@ impl <ADDR, KIND, KEY: PartialEq + Default + Zeroize> PartialEq<KEY> for Key<ADD
     }
 }
 
+/// [`core::fmt::LowerHex`] where `KEY: AsRef<[u8]>`
+impl <ADDR, KIND, KEY: AsRef<[u8]> + Default + Zeroize> core::fmt::LowerHex for Key<ADDR, KIND, KEY> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let data = self.key.as_ref();
+        for d in data {
+            write!(f, "{:02x}", d)?;
+        }
+        Ok(())
+    }
+}
+
+/// [`core::fmt::UpperHex`] where `KEY: AsRef<[u8]>`
+impl <ADDR, KIND, KEY: AsRef<[u8]> + Default + Zeroize> core::fmt::UpperHex for Key<ADDR, KIND, KEY> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let data = self.key.as_ref();
+        for d in data {
+            write!(f, "{:02X}", d)?;
+        }
+        Ok(())
+    }
+}
+
 /// Create a default key object
 impl <ADDR, KIND, KEY: Default + Zeroize> Default for Key<ADDR, KIND, KEY> {
     fn default() -> Self {
@@ -115,7 +138,6 @@ impl <ADDR, KIND> AsRef<RistrettoPoint> for Key<ADDR, KIND, RistrettoPublic> {
     }
 }
 
-
 /// PartialEq for public key objects
 impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPublic> {
     fn eq(&self, other: &Self) -> bool {
@@ -123,6 +145,16 @@ impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPublic> {
     }
 }
 
+/// [`core::fmt::Display`] for public key objects
+impl <ADDR, KIND> Display for Key<ADDR, KIND, RistrettoPublic> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let data = self.key.to_bytes();
+        for d in data {
+            write!(f, "{:02x}", d)?;
+        }
+        Ok(())
+    }
+}
 
 /// Shared private key methods
 impl <ADDR, KIND> Key<ADDR, KIND, RistrettoPrivate> {
@@ -136,6 +168,13 @@ impl <ADDR, KIND> Key<ADDR, KIND, RistrettoPrivate> {
 impl <ADDR, KIND> From<RistrettoPrivate> for Key<ADDR, KIND, RistrettoPrivate> {
     fn from(p: RistrettoPrivate) -> Self {
         Self{ key: p, _addr: PhantomData, _kind: PhantomData }
+    }
+}
+
+/// Fetch corresponding public key from a private key object
+impl <ADDR, KIND> From<Key<ADDR, KIND, RistrettoPrivate>> for Key<ADDR, KIND, RistrettoPublic> {
+    fn from(p: Key<ADDR, KIND, RistrettoPrivate>) -> Self {
+        Self{ key: RistrettoPublic::from(&p.key), _addr: PhantomData, _kind: PhantomData }
     }
 }
 
@@ -156,10 +195,24 @@ impl <ADDR, KIND> AsRef<Scalar> for Key<ADDR, KIND, RistrettoPrivate> {
     }
 }
 
+/// Create private keys from raw [`Scalar`]
+impl <ADDR, KIND> From<Scalar> for Key<ADDR, KIND, RistrettoPrivate> {
+    fn from(s: Scalar) -> Self {
+        Self{ key: RistrettoPrivate::from(s), _addr: PhantomData, _kind: PhantomData }
+    }
+}
+
 /// PartialEq via public key conversion for Private key objects
 impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPrivate> {
     fn eq(&self, other: &Self) -> bool {
         RistrettoPublic::from(&self.key) == RistrettoPublic::from(&other.key)
+    }
+}
+
+/// [`core::fmt::Display`] for public key objects
+impl <ADDR, KIND> Display for Key<ADDR, KIND, RistrettoPrivate> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "pub({})", RistrettoPublic::from(&self.key))
     }
 }
 

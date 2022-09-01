@@ -8,7 +8,7 @@ use zeroize::Zeroize;
 use mc_crypto_keys::{RistrettoPrivate};
 
 #[cfg(feature = "bip39")]
-pub use bip39::Mnemonic;
+pub use bip39::{Mnemonic, Language};
 
 use crate::{
     account::Account,

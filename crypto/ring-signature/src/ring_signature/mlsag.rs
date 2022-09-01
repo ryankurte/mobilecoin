@@ -269,7 +269,7 @@ impl <'a> MlsagSign<'a> {
     pub fn sign(&self,
         // Note: this `mut rng` can just be `rng` if this is merged upstream:
         // https://github.com/dalek-cryptography/curve25519-dalek/pull/394
-        mut rng: &mut dyn CryptoRngCore,
+        mut rng: impl CryptoRngCore,
         decompressed_ring: &mut [(RistrettoPublic, Commitment)],
         challenges: &mut [Scalar],
         responses: &mut [CurveScalar],

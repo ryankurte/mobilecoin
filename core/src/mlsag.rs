@@ -45,7 +45,7 @@ pub struct RingMLSAG<const RING_SIZE: usize = MAX_TXOUTS, const RESP_SIZE: usize
 
 impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_SIZE> {
     /// Generate a ring signature with the provided options
-    pub fn sign<'a>(opts: &MlsagSign<'a>, rng: &mut dyn CryptoRngCore) -> Result<Self, Error> {
+    pub fn sign<'a>(opts: &MlsagSign<'a>, rng: impl CryptoRngCore) -> Result<Self, Error> {
         let ring_size = opts.ring.len();
 
         // Setup buffers for recomputed_c and decompressed rings

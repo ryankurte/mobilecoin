@@ -20,10 +20,10 @@ use mc_crypto_ring_signature::{CurveScalar, KeyImage};
 use crate::protos;
 
 /// Maximum number of txouts in ring signature
-const MAX_TXOUTS: usize = 11;
+pub const MAX_TXOUTS: usize = 11;
 
 /// Maximum number of challenges in ring signature
-const MAX_RESPONSES: usize = MAX_TXOUTS * 2;
+pub const MAX_RESPONSES: usize = MAX_TXOUTS * 2;
 
 
 /// RingMLSAG Signature object
@@ -47,6 +47,14 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
     /// Generate a ring signature with the provided options
     pub fn sign<'a>(opts: &MlsagSign<'a>, rng: impl CryptoRngCore) -> Result<Self, Error> {
         let ring_size = opts.ring.len();
+
+        // Check bounds
+        if ring_size > RING_SIZE {
+            return Err(Error::LengthMismatch(ring_size, RING_SIZE));
+        }
+        if ring_size * 2 > RESP_SIZE {
+            return Err(Error::LengthMismatch(ring_size * 2, RESP_SIZE));
+        }
 
         // Setup buffers for recomputed_c and decompressed rings
         let (mut challenges, mut responses, mut decompressed_ring) = (

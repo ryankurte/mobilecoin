@@ -7,11 +7,11 @@ use zeroize::Zeroize;
 use mc_crypto_keys::{RistrettoPublic};
 use mc_crypto_ring_signature::{
     CryptoRngCore, Error, Scalar,
-    ReducedTxOut, CompressedCommitment, Commitment,
+    CompressedCommitment, Commitment,
 };
 
 pub use mc_crypto_ring_signature::{
-    MlsagSign, MlsagVerify,
+    MlsagSignParams, MlsagSignCtx, MlsagVerify, Ring,
 };
 
 use mc_crypto_ring_signature::{CurveScalar, KeyImage};
@@ -45,8 +45,8 @@ pub struct RingMLSAG<const RING_SIZE: usize = MAX_TXOUTS, const RESP_SIZE: usize
 
 impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_SIZE> {
     /// Generate a ring signature with the provided options
-    pub fn sign<'a>(opts: &MlsagSign<'a>, rng: impl CryptoRngCore) -> Result<Self, Error> {
-        let ring_size = opts.ring.len();
+    pub fn sign<'a>(ring: impl Ring, opts: &MlsagSignParams<'a>, rng: impl CryptoRngCore) -> Result<Self, Error> {
+        let ring_size = ring.size();
 
         // Check bounds
         if ring_size > RING_SIZE {
@@ -57,18 +57,16 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
         }
 
         // Setup buffers for recomputed_c and decompressed rings
-        let (mut challenges, mut responses, mut decompressed_ring) = (
+        let (mut challenges, mut responses) = (
             heapless::Vec::<_, RING_SIZE>::new(),
             heapless::Vec::<_, RESP_SIZE>::new(),
-            heapless::Vec::<_, RING_SIZE>::new(),
         );
 
         challenges.resize(ring_size, Scalar::zero()).unwrap();
         responses.resize(ring_size * 2, CurveScalar::from(Scalar::zero())).unwrap();
-        decompressed_ring.resize_default(ring_size).unwrap();
 
         // Perform ring signing
-        let key_image = opts.sign(rng, &mut decompressed_ring, &mut challenges, &mut responses)?;
+        let key_image = opts.sign(ring, rng, &mut challenges, &mut responses)?;
     
         let r = RingMLSAG {
             c_zero: CurveScalar::from(challenges[0]),
@@ -78,19 +76,18 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
 
         // Zeroize buffers
         challenges.iter_mut().for_each(|v| v.zeroize() );
-        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
 
         Ok(r)
     }
 
     /// Verify a ring signature with the provided options
-    pub fn verify(
+    pub fn verify<R: Ring>(
         &self,
         message: &[u8],
-        ring: &[ReducedTxOut],
+        ring: R,
         output_commitment: &CompressedCommitment,
     ) -> Result<(), Error> {
-        let ring_size = ring.len();
+        let ring_size = ring.size();
 
         // Setup buffers for recomputed_c and decompressed rings
         let (mut recomputed_c, mut decompressed_ring) = (
@@ -115,7 +112,7 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
 
         // Execute verification
         // (not returning here to ensure buffers get zeroized)
-        let res = opts.verify(&mut recomputed_c, &mut decompressed_ring);
+        let res = opts.verify(&mut recomputed_c);
     
         // Zeroize buffers
         recomputed_c.iter_mut().for_each(|v| v.zeroize() );

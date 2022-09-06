@@ -35,7 +35,7 @@ pub use ring_signature::{
 pub use ring_signature::RingMLSAG;
 
 #[cfg(feature = "internals")]
-pub use ring_signature::{MlsagSign, MlsagVerify};
+pub use ring_signature::{MlsagSignParams, MlsagSignCtx, MlsagVerify, Ring};
 
 
 /// Get the shared secret for a transaction output.

@@ -11,6 +11,9 @@ mod error;
 mod key_image;
 mod mlsag;
 
+mod mlsag_sign;
+mod mlsag_verify;
+
 pub use self::{
     curve_scalar::CurveScalar,
     error::Error,
@@ -30,7 +33,11 @@ use curve25519_dalek::{
 use curve25519_dalek::traits::MultiscalarMul;
 
 #[cfg(feature = "internals")]
-pub use self::mlsag::{MlsagSign, MlsagVerify};
+pub use self::{
+    mlsag::Ring,
+    mlsag_sign::{MlsagSignParams, MlsagSignCtx}, 
+    mlsag_verify::MlsagVerify,
+};
 
 
 use mc_crypto_hashes::{Blake2b512, Digest};

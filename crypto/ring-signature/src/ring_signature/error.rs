@@ -31,6 +31,9 @@ pub enum Error {
 
     /// Value not conserved
     ValueNotConserved,
+
+    /// Unexpected tx_out index
+    UnexpectedTxout,
 }
 
 impl From<mc_util_repr_bytes::LengthMismatch> for Error {

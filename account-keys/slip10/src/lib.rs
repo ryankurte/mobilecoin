@@ -527,7 +527,7 @@ mod test {
             let mnemonic = Mnemonic::from_phrase(data.phrase, Language::English)
                 .expect("Could not read test phrase into mnemonic");
             let key = mnemonic.derive_slip10_key(data.account_index);
-            let account_key = Account:from(&key);
+            let account_key = Account::from(&key);
 
             let mut expected_view_bytes = [0u8; 64];
             hex::decode_to_slice(data.view_hex, &mut expected_view_bytes)

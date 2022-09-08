@@ -85,7 +85,7 @@ impl Subaddress for Account {
 
     /// Fetch private keys for the i^th subaddress
     fn subaddress(&self, index: u64) -> Self::Output {
-        let (view_private, spend_private) = (&self.view_private, &self.spend_private).subaddress(index);
+        let (view_private, spend_private) = (self.view_private_key(), self.spend_private_key()).subaddress(index);
 
         SpendSubaddress{view_private, spend_private}
     }

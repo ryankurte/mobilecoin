@@ -28,11 +28,9 @@ pub trait RingCtAddress {
 #[derive(Debug, Zeroize)]
 pub struct Account {
     /// Root view private key
-    // TODO: can we make this non-public?
-    pub view_private: RootViewPrivate,
+    view_private: RootViewPrivate,
     /// Root spend private key
-    // TODO: can we make this non-public?
-    pub spend_private: RootSpendPrivate,
+    spend_private: RootSpendPrivate,
 }
 
 impl Account {
@@ -49,6 +47,16 @@ impl Account {
     /// Fetch account spend public key
     pub fn spend_public_key(&self) -> RootSpendPublic {
         RootSpendPublic::from(&self.spend_private)
+    }
+
+    /// Fetch account view private key
+    pub fn view_private_key(&self) -> &RootViewPrivate {
+        &self.view_private
+    }
+
+    /// Fetch account spend private key
+    pub fn spend_private_key(&self) -> &RootSpendPrivate {
+        &self.spend_private
     }
 }
 
@@ -75,6 +83,18 @@ impl RingCtAddress for SpendSubaddress {
     }
 }
 
+impl SpendSubaddress {
+    /// Fetch subaddress view private key
+    pub fn view_private_key(&self) -> &SubaddrViewPrivate {
+        &self.view_private
+    }
+
+    /// Fetch subaddress spend private key
+    pub fn spend_private_key(&self) -> &SubaddrSpendPrivate {
+        &self.spend_private
+    }
+}
+
 /// Mobilecoin view-only subaddress object
 #[derive(Clone, Debug, PartialEq)]
 pub struct ViewSubaddress {
@@ -93,6 +113,13 @@ impl RingCtAddress for ViewSubaddress {
     /// Fetch spend public address
     fn spend_public_key(&self) -> SubaddrSpendPublic {
         self.spend_public.clone()
+    }
+}
+
+impl ViewSubaddress {
+    /// Fetch subaddress view private key
+    pub fn view_private_key(&self) -> &SubaddrViewPrivate {
+        &self.view_private
     }
 }
 

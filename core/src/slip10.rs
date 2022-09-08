@@ -50,10 +50,7 @@ impl Slip10Key {
 /// (see [`wallet_path`] for the BIP32 derivation path)
 impl From<&Slip10Key> for Account {
     fn from(src: &Slip10Key) -> Self {
-        Account{
-            spend_private: RootSpendPrivate::from(src), 
-            view_private: RootViewPrivate::from(src),
-        }
+        Account::new( RootViewPrivate::from(src), RootSpendPrivate::from(src))
     }
 }
 

@@ -4,10 +4,9 @@
 
 use zeroize::Zeroize;
 
-use mc_crypto_keys::{RistrettoPublic};
 use mc_crypto_ring_signature::{
     CryptoRngCore, Error, Scalar,
-    CompressedCommitment, Commitment,
+    CompressedCommitment,
 };
 
 pub use mc_crypto_ring_signature::{
@@ -19,18 +18,16 @@ use mc_crypto_ring_signature::{CurveScalar, KeyImage};
 #[cfg(feature = "protos")]
 use crate::protos;
 
-/// Maximum number of txouts in ring signature
-pub const MAX_TXOUTS: usize = 11;
+use crate::consts::MAX_TXOUTS;
 
 /// Maximum number of challenges in ring signature
 pub const MAX_RESPONSES: usize = MAX_TXOUTS * 2;
-
 
 /// RingMLSAG Signature object
 /// 
 /// Mirrors [`mc_crypto_ring_signature::RingMLSAG`] while using internal allocation,
 /// provides proto compatibility via [`crate::Rpc`] interface where `protos` feature is enabled.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct RingMLSAG<const RING_SIZE: usize = MAX_TXOUTS, const RESP_SIZE: usize = MAX_RESPONSES> {
     /// The initial challenge `c[0]`.
     pub c_zero: CurveScalar,
@@ -65,9 +62,15 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
         challenges.resize(ring_size, Scalar::zero()).unwrap();
         responses.resize(ring_size * 2, CurveScalar::from(Scalar::zero())).unwrap();
 
+        let mut decompressed_ring = heapless::Vec::<_, RING_SIZE>::new();
+        for i in 0..ring_size {
+            decompressed_ring.push(ring.index(i)?).unwrap();
+        }
+
         // Perform ring signing
-        let key_image = opts.sign(ring, rng, &mut challenges, &mut responses)?;
-    
+        let key_image = opts.sign(&decompressed_ring[..], rng, &mut challenges, &mut responses)?;
+
+
         let r = RingMLSAG {
             c_zero: CurveScalar::from(challenges[0]),
             key_image,
@@ -89,15 +92,15 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
     ) -> Result<(), Error> {
         let ring_size = ring.size();
 
-        // Setup buffers for recomputed_c and decompressed rings
-        let (mut recomputed_c, mut decompressed_ring) = (
-            heapless::Vec::<_, MAX_RESPONSES>::new(),
-            heapless::Vec::<_, MAX_TXOUTS>::new(),
-        );
-
+        // Setup buffer for recomputed challenges
+        let mut recomputed_c = heapless::Vec::<_, RING_SIZE>::new();
         for _i in 0..ring_size {
             let _ = recomputed_c.push(Scalar::zero());
-            let _ = decompressed_ring.push((RistrettoPublic::default(), Commitment::default()));
+        }
+
+        let mut decompressed_ring = heapless::Vec::<_, RING_SIZE>::new();
+        for i in 0..ring_size {
+            let _ = decompressed_ring.push(ring.index(i)?);
         }
 
         // Setup and execute verification
@@ -106,7 +109,7 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
             c_zero: &self.c_zero,
             responses: &self.responses,
             message,
-            ring,
+            ring: &decompressed_ring[..],
             output_commitment,
         };
 
@@ -116,7 +119,6 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
     
         // Zeroize buffers
         recomputed_c.iter_mut().for_each(|v| v.zeroize() );
-        decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
 
         res
     }
@@ -161,4 +163,9 @@ impl From<RingMLSAG> for protos::RingMlsag {
                 .collect(),
         }
     } 
+}
+
+#[cfg(test)]
+mod test {
+    // TODO
 }

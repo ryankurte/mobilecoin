@@ -27,6 +27,7 @@ pub const CHANGE_SUBADDRESS_INDEX: u64 = u64::MAX - 1;
 /// for gift code TxOuts to be sent as specified in MCIP #32.
 pub const GIFT_CODE_SUBADDRESS_INDEX: u64 = u64::MAX - 2;
 
-
+/// Maximum number of txouts in ring signature
+pub const MAX_TXOUTS: usize = 11;
 
 // TODO: TokenIDs

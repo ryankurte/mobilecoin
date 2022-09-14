@@ -140,8 +140,8 @@ pub fn create_tx_out_public_key(
 ///
 /// # Arguments
 /// * `view_private_key` - The recipient's view private key `a`.
-/// * `tx_out_target_key` - The output's target_key.
-/// * `tx_out_public_key` - The output's public_key.
+/// * `tx_out_target_key` - The output's tx_target_key.
+/// * `tx_out_public_key` - The output's tx_public_key `R`.
 pub fn recover_public_subaddress_spend_key(
     view_private_key: &RistrettoPrivate,
     tx_out_target_key: &RistrettoPublic,

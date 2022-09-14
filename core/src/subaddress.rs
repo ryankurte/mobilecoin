@@ -7,7 +7,7 @@ use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic};
 
 use crate::{
     account::{Account, SpendSubaddress},
-    consts::SUBADDRESS_DOMAIN_TAG,
+    consts::{SUBADDRESS_DOMAIN_TAG},
     keys::*,
 };
 
@@ -98,6 +98,7 @@ mod tests {
     use mc_util_test_with_data::test_with_data;
     use mc_test_vectors_definitions::account_keys::DefaultSubaddrKeysFromAcctPrivKeys;
 
+    use crate::consts::DEFAULT_SUBADDRESS_INDEX;
     use super::*;
     
     #[test_with_data(DefaultSubaddrKeysFromAcctPrivKeys::from_jsonl("../test-vectors/vectors"))]

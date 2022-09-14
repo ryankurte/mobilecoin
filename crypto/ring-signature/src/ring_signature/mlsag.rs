@@ -265,6 +265,7 @@ pub trait Ring {
     fn check(&self) -> Result<(), Error>;
 }
 
+/// [`Ring`] implementation for pre-decompressed slices
 impl Ring for &[(RistrettoPublic, Commitment)] {
     /// Fetch ring size
     fn size(&self) -> usize {
@@ -273,7 +274,10 @@ impl Ring for &[(RistrettoPublic, Commitment)] {
 
     /// Access a pre-decompressed ring element by index
     fn index(&self, index: usize) -> Result<(RistrettoPublic, Commitment) , Error>{
-        Ok(self.as_ref().index(index).clone())
+        match self.as_ref().get(index) {
+            Some(v) => Ok(*v),
+            None => Err(Error::IndexOutOfBounds),
+        }
     }
 
     /// Pre-decompressed ring always decompresses...
@@ -282,6 +286,7 @@ impl Ring for &[(RistrettoPublic, Commitment)] {
     }
 }
 
+/// [`Ring`] implementation for reduced slices
 impl Ring for &[ReducedTxOut] {
     /// Fetch ring size
     fn size(&self) -> usize {

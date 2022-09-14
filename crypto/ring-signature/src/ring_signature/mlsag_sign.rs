@@ -43,6 +43,8 @@ pub struct MlsagSignParams<'a> {
 
 impl <'a> MlsagSignParams<'a> {
     /// Sign a ring of input addresses and amount commitments using a modified MLSAG
+    /// 
+    /// Returns the signed key_image and c_zero scalar
     pub fn sign(&self,
         ring: impl Ring,
         // Note: this `mut rng` can just be `rng` if this is merged upstream:
@@ -85,7 +87,7 @@ impl <'a> MlsagSignParams<'a> {
         }
 
         // "Close the loop" by computing responses for the real index.
-        let key_image = sign_ctx.finalise(&self, challenges, responses)?;
+        let (key_image, _) = sign_ctx.finalise(&self, challenges, responses)?;
 
         Ok(key_image)
     }
@@ -256,7 +258,7 @@ impl MlsagSignCtx {
         params: &'a MlsagSignParams<'a>,
         challenges: &mut [Scalar],
         responses: &mut [CurveScalar],
-    ) -> Result<KeyImage, Error> {
+    ) -> Result<(KeyImage, CurveScalar), Error> {
         
         let MlsagSignParams{ ring_size, real_index, .. } = params;
 
@@ -293,6 +295,9 @@ impl MlsagSignCtx {
             }
         }
 
-        Ok(self.key_image.clone())
+        Ok((
+            self.key_image.clone(),
+            CurveScalar::from(challenges[0]),
+        ))
     }
 }

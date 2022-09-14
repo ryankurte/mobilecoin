@@ -3067,6 +3067,7 @@ dependencies = [
  "heapless",
  "hex",
  "hkdf",
+ "lazy_static",
  "mc-core-types",
  "mc-crypto-digestible",
  "mc-crypto-hashes",
@@ -3079,6 +3080,7 @@ dependencies = [
  "prost 0.11.0",
  "prost-build",
  "serde",
+ "serde_json",
  "sha2 0.10.2",
  "slip10_ed25519",
  "tiny-bip39",
@@ -3093,7 +3095,7 @@ dependencies = [
  "curve25519-dalek",
  "ed25519-dalek",
  "mc-crypto-keys",
- "rand_core 0.3.1",
+ "rand_core 0.6.3",
  "serde",
  "zeroize",
 ]
@@ -7557,9 +7559,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.82"
+version = "1.0.85"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82c2c1fdcd807d1098552c5b9a36e425e42e9fbd7c6a37a8425f390f781f7fa7"
+checksum = "e55a28e3aaef9d5ce0506d0a14dbba8054ddc7e499ef522dd8b26859ec9d4a44"
 dependencies = [
  "itoa 1.0.1",
  "ryu",

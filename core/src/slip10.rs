@@ -121,3 +121,121 @@ impl Slip10KeyGenerator for bip39::Mnemonic {
         Slip10Key(key)
     }
 }
+
+#[cfg(test)]
+mod test {
+    extern crate alloc;
+
+    use serde::{Serialize, Deserialize};
+    use alloc::{vec::Vec, string::String};
+
+    use curve25519_dalek::scalar::Scalar;
+
+    use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic};
+
+    use super::*;
+
+    // Include test vectors as JSON strings
+    const KEY_TO_RISTRETTO_STR: &str = include_str!("../tests/slip10_key.json");
+    const MNEMONIC_TO_RISTRETTO_STR: &str = include_str!("../tests/slip10_mnemonic.json");
+
+    // Deserialize test vectors on first access
+    lazy_static::lazy_static! {
+        pub static ref SLIPKEY_TO_RISTRETTO_TESTS: Vec<KeyToRistretto> = serde_json::from_str(KEY_TO_RISTRETTO_STR).unwrap();
+
+        pub static ref MNEMONIC_TO_RISTRETTO_TESTS: Vec<MnemonicToRistretto> = serde_json::from_str(MNEMONIC_TO_RISTRETTO_STR).unwrap();
+    }
+
+    /// Slip10 key to ristretto test definitions
+    #[derive(Clone, PartialEq, Serialize, Deserialize)]
+    pub struct KeyToRistretto {
+        slip10_hex: String,
+        view_hex: String,
+        spend_hex: String,
+    }
+
+    /// Slip10 mnemonic to ristretto test definitions
+    #[derive(Clone, PartialEq, Serialize, Deserialize)]
+    pub struct MnemonicToRistretto {
+        phrase: String,
+        account_index: u32,
+        view_hex: String,
+        spend_hex: String,
+    }
+
+    #[test]
+    fn slip10key_into_account_key() {
+        for data in SLIPKEY_TO_RISTRETTO_TESTS.iter() {
+            // TODO: maybe Slip10Key could implement hex::FromHex?
+            let mut key_bytes = [0u8; 32];
+            hex::decode_to_slice(&data.slip10_hex, &mut key_bytes[..])
+                .expect("Could not decode SLIP10 test vector output");
+    
+            let slip10_key = Slip10Key(key_bytes);
+    
+            let mut expected_view_bytes = [0u8; 64];
+            hex::decode_to_slice(&data.view_hex, &mut expected_view_bytes)
+                .expect("Could not decode view-key bytes");
+            let expected_view_scalar = Scalar::from_bytes_mod_order_wide(&expected_view_bytes);
+            let expected_view_key = RistrettoPrivate::from(expected_view_scalar);
+    
+            let mut expected_spend_bytes = [0u8; 64];
+            hex::decode_to_slice(&data.spend_hex, &mut expected_spend_bytes)
+                .expect("Could not decode spend-key bytes");
+            let expected_spend_scalar = Scalar::from_bytes_mod_order_wide(&expected_spend_bytes);
+            let expected_spend_key = RistrettoPrivate::from(expected_spend_scalar);
+    
+            let account_key = Account::from(&slip10_key);
+    
+            assert_ne!(
+                RistrettoPublic::from(&expected_view_key),
+                RistrettoPublic::from(&expected_spend_key),
+            );
+            assert_eq!(
+                account_key.view_private_key(),
+                &expected_view_key,
+            );
+            assert_eq!(
+                account_key.spend_private_key(),
+                &expected_spend_key,
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "bip39")]
+    fn mnemonic_into_account_key() {
+        for data in MNEMONIC_TO_RISTRETTO_TESTS.iter() {
+            let mnemonic = Mnemonic::from_phrase(&data.phrase, Language::English)
+                .expect("Could not read test phrase into mnemonic");
+            let key = mnemonic.derive_slip10_key(data.account_index);
+            let account_key = Account::from(&key);
+    
+            let mut expected_view_bytes = [0u8; 64];
+            hex::decode_to_slice(&data.view_hex, &mut expected_view_bytes)
+                .expect("Could not decode view-key bytes");
+            let expected_view_scalar = Scalar::from_bytes_mod_order_wide(&expected_view_bytes);
+            let expected_view_key = RistrettoPrivate::from(expected_view_scalar);
+    
+            let mut expected_spend_bytes = [0u8; 64];
+            hex::decode_to_slice(&data.spend_hex, &mut expected_spend_bytes)
+                .expect("Could not decode spend-key bytes");
+            let expected_spend_scalar = Scalar::from_bytes_mod_order_wide(&expected_spend_bytes);
+            let expected_spend_key = RistrettoPrivate::from(expected_spend_scalar);
+    
+            assert_ne!(
+                RistrettoPublic::from(&expected_view_key),
+                RistrettoPublic::from(&expected_spend_key),
+            );
+            assert_eq!(
+                account_key.view_private_key(),
+                &expected_view_key,
+            );
+            assert_eq!(
+                account_key.spend_private_key(),
+                &expected_spend_key,
+            );
+        }
+    }
+    
+}

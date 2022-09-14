@@ -6,12 +6,12 @@
 use bip39::{Language, Mnemonic, MnemonicType};
 use hex_fmt::HexFmt;
 use mc_account_keys::AccountKey;
-use mc_account_keys_slip10::Slip10Key;
+use mc_account_keys_slip10::{Slip10KeyGenerator};
 
 fn main() {
     let mnemonic = Mnemonic::new(MnemonicType::Words24, Language::English);
     println!("PHRASE: {}", mnemonic.phrase());
-    let slip10key = Slip10Key::from(mnemonic);
+    let slip10key = mnemonic.derive_slip10_key(0);
     let account_key = AccountKey::from(slip10key);
     let default_subaddress = account_key.default_subaddress();
     let view_public_bytes = default_subaddress.view_public_key().to_bytes();

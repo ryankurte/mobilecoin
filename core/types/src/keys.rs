@@ -68,13 +68,6 @@ impl <ADDR, KIND, KEY: Default + Zeroize> AsRef<KEY> for Key<ADDR, KIND, KEY> {
     }
 }
 
-/// PartialEq against internal key types for backwards compatibility
-impl <ADDR, KIND, KEY: PartialEq + Default + Zeroize> PartialEq<KEY> for Key<ADDR, KIND, KEY> {
-    fn eq(&self, other: &KEY) -> bool {
-        &self.key == other
-    }
-}
-
 /// [`core::fmt::LowerHex`] where `KEY: AsRef<[u8]>`
 impl <ADDR, KIND, KEY: AsRef<[u8]> + Default + Zeroize> core::fmt::LowerHex for Key<ADDR, KIND, KEY> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -150,6 +143,21 @@ impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPublic> {
     }
 }
 
+/// PartialEq for backwards compatibility with public key objects
+impl <ADDR, KIND> PartialEq<RistrettoPublic> for Key<ADDR, KIND, RistrettoPublic> {
+    fn eq(&self, other: &RistrettoPublic) -> bool {
+        &self.key == other
+    }
+}
+
+/// PartialEq for backwards compatibility with public key objects
+impl <ADDR, KIND> PartialEq<Key<ADDR, KIND, RistrettoPublic>> for RistrettoPublic {
+    fn eq(&self, other: &Key<ADDR, KIND, RistrettoPublic>) -> bool {
+        self == &other.key
+    }
+}
+
+
 /// [`core::fmt::Display`] for public key objects
 impl <ADDR, KIND> Display for Key<ADDR, KIND, RistrettoPublic> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -207,6 +215,20 @@ impl <ADDR, KIND> From<Scalar> for Key<ADDR, KIND, RistrettoPrivate> {
     }
 }
 
+/// PartialEq for backwards compatibility with private key objects
+impl <ADDR, KIND> PartialEq<RistrettoPrivate> for Key<ADDR, KIND, RistrettoPrivate> {
+    fn eq(&self, other: &RistrettoPrivate) -> bool {
+        RistrettoPublic::from(&self.key) == RistrettoPublic::from(other)
+    }
+}
+
+/// PartialEq for backwards compatibility with private key objects
+impl <ADDR, KIND> PartialEq<Key<ADDR, KIND, RistrettoPrivate>> for RistrettoPrivate {
+    fn eq(&self, other: &Key<ADDR, KIND, RistrettoPrivate>) -> bool {
+        RistrettoPublic::from(self) == RistrettoPublic::from(&other.key)
+    }
+}
+
 /// PartialEq via public key conversion for Private key objects
 impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPrivate> {
     fn eq(&self, other: &Self) -> bool {
@@ -214,7 +236,7 @@ impl <ADDR, KIND> PartialEq for Key<ADDR, KIND, RistrettoPrivate> {
     }
 }
 
-/// [`core::fmt::Display`] for public key objects
+/// [`core::fmt::Display`] for private key objects
 impl <ADDR, KIND> Display for Key<ADDR, KIND, RistrettoPrivate> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "pub({})", RistrettoPublic::from(&self.key))

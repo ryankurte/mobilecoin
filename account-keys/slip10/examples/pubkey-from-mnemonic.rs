@@ -6,7 +6,7 @@
 use bip39::{Language, Mnemonic};
 use hex_fmt::HexFmt;
 use mc_account_keys::AccountKey;
-use mc_account_keys_slip10::Slip10Key;
+use mc_account_keys_slip10::{Slip10KeyGenerator};
 use std::io;
 
 fn main() {
@@ -18,7 +18,7 @@ fn main() {
     let mnemonic = Mnemonic::from_phrase(&phrase, Language::English)
         .expect("Given phrase was not a BIP39 mnemonic");
 
-    let slip10key = Slip10Key::from(mnemonic);
+    let slip10key = mnemonic.derive_slip10_key(0);
     let account_key = AccountKey::from(slip10key);
     let default_subaddress = account_key.default_subaddress();
     let view_public_bytes = default_subaddress.view_public_key().to_bytes();

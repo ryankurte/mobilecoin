@@ -3068,6 +3068,7 @@ dependencies = [
  "hex",
  "hkdf",
  "lazy_static",
+ "log",
  "mc-core-types",
  "mc-crypto-digestible",
  "mc-crypto-hashes",
@@ -3284,7 +3285,6 @@ version = "0.1.0"
 dependencies = [
  "curve25519-dalek",
  "ed25519-dalek",
- "x25519-dalek",
 ]
 
 [[package]]

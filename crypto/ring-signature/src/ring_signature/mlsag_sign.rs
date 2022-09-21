@@ -83,11 +83,11 @@ impl <'a> MlsagSignParams<'a> {
             let i = (self.real_index + n) % ring_size;
             let tx_out = &ring.index(i)?;
 
-            sign_ctx.update(&self, i, tx_out, challenges, responses)?;
+            sign_ctx.update(&self, i, tx_out)?;
         }
 
         // "Close the loop" by computing responses for the real index.
-        let (key_image, _) = sign_ctx.finalise(&self, challenges, responses)?;
+        let (key_image, _) = sign_ctx.finalise(&self)?;
 
         Ok(key_image)
     }
@@ -98,7 +98,7 @@ impl <'a> MlsagSignParams<'a> {
 /// WARNING: MISUSE OF THIS API MAY GENERATE INVALID RINGS, 
 /// SEE [`MlsagSign`] FOR A PREFERRED HIGHER LEVEL ABSTRACTION
 #[derive(Debug, Zeroize)]
-pub struct MlsagSignCtx {
+pub struct MlsagSignCtx<C: AsMut<[Scalar]>, R: AsMut<[CurveScalar]>> {
     alpha_0: Scalar,
     alpha_1: Scalar,
     G: RistrettoPoint,
@@ -111,22 +111,27 @@ pub struct MlsagSignCtx {
     /// Number of rings computed
     ring_count: usize,
 
+    challenges: C,
+    responses: R,
+
     #[zeroize(skip)]
     key_image: KeyImage,
 
     #[zeroize(skip)]
     output_commitment: Commitment,
+
+    complete: bool,
 }
 
 #[allow(dead_code)]
-impl MlsagSignCtx {
+impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSignCtx<C, R> {
     /// Initialise signing state, including `challenges` and `responses` working buffers
     pub fn init<'a>(
         params: &'a MlsagSignParams<'a>,
         mut rng: impl CryptoRngCore,
-        challenges: &'a mut [Scalar],
-        responses: &'a mut [CurveScalar])
-    -> Result<Self, Error> {
+        mut challenges: C,
+        mut responses: R,
+    ) -> Result<Self, Error> {
 
         let G = B_BLINDING;
         debug_assert!(
@@ -134,12 +139,14 @@ impl MlsagSignCtx {
             "basepoint for blindings mismatch"
         );
 
+        let (c, r) = (challenges.as_mut(), responses.as_mut());
+
         // Check buffer lengths are correct for ring size
-        if challenges.len() != params.ring_size {
-            return Err(Error::LengthMismatch(params.ring_size, challenges.len()));
+        if c.len() != params.ring_size {
+            return Err(Error::LengthMismatch(params.ring_size, c.len()));
         }
-        if responses.len() != params.ring_size * 2 {
-            return Err(Error::LengthMismatch(params.ring_size * 2, responses.len()));
+        if r.len() != params.ring_size * 2 {
+            return Err(Error::LengthMismatch(params.ring_size * 2, r.len()));
         }
 
         // Generate KeyImage from generated transaction private key
@@ -154,17 +161,17 @@ impl MlsagSignCtx {
         let output_commitment = Commitment::new(params.value, *params.output_blinding, params.generator);
 
         // Challenges `c_0, ... c_{ring_size - 1}`.
-        challenges.iter_mut().for_each(|v| *v = Scalar::zero() );
+        c.iter_mut().for_each(|v| *v = Scalar::zero() );
 
         // Responses `r_{0,0}, r_{0,1}, ... , r_{ring_size-1,0}, r_{ring_size-1,1}`.
-        responses.iter_mut().for_each(|v| *v = CurveScalar::from(Scalar::zero()) );
+        r.iter_mut().for_each(|v| *v = CurveScalar::from(Scalar::zero()) );
 
         for i in 0..params.ring_size {
             if i == params.real_index {
                 continue;
             }
-            responses[2 * i].scalar = Scalar::random(&mut rng);
-            responses[2 * i + 1].scalar = Scalar::random(&mut rng);
+            r[2 * i].scalar = Scalar::random(&mut rng);
+            r[2 * i + 1].scalar = Scalar::random(&mut rng);
         }
 
         Ok(Self {
@@ -175,6 +182,9 @@ impl MlsagSignCtx {
             alpha_1: Scalar::random(&mut rng),
             ring_count: 0,
             real_input: None,
+            challenges,
+            responses,
+            complete: false,
         })    
     }
 
@@ -185,19 +195,11 @@ impl MlsagSignCtx {
         params: &MlsagSignParams<'a>,
         i: usize,
         tx_out: &(RistrettoPublic, Commitment),
-        challenges: &mut [Scalar],
-        responses: &mut [CurveScalar],
     ) -> Result<(), Error> {
     
         let MlsagSignParams{ real_index, message, ring_size, .. } = params;
 
-        // Check buffer lengths are correct for ring size
-        if challenges.len() != params.ring_size {
-            return Err(Error::LengthMismatch(params.ring_size, challenges.len()));
-        }
-        if responses.len() != params.ring_size * 2 {
-            return Err(Error::LengthMismatch(params.ring_size * 2, responses.len()));
-        }
+        let (challenges, responses) = (self.challenges.as_mut(), self.responses.as_mut());
 
         // Check tx_out index matches current state
         if i != (real_index + self.ring_count) % ring_size {
@@ -256,19 +258,11 @@ impl MlsagSignCtx {
     pub fn finalise<'a>(
         &mut self,
         params: &'a MlsagSignParams<'a>,
-        challenges: &mut [Scalar],
-        responses: &mut [CurveScalar],
     ) -> Result<(KeyImage, CurveScalar), Error> {
         
         let MlsagSignParams{ ring_size, real_index, .. } = params;
 
-        // Check buffer lengths are correct for ring size
-        if challenges.len() != params.ring_size {
-            return Err(Error::LengthMismatch(params.ring_size, challenges.len()));
-        }
-        if responses.len() != params.ring_size * 2 {
-            return Err(Error::LengthMismatch(params.ring_size * 2, responses.len()));
-        }
+        let (challenges, responses) = (self.challenges.as_mut(), self.responses.as_mut());
 
         // Check ring size matches added entries
         if *ring_size != self.ring_count {
@@ -295,9 +289,21 @@ impl MlsagSignCtx {
             }
         }
 
+        self.complete = true;
+
         Ok((
             self.key_image.clone(),
             CurveScalar::from(challenges[0]),
         ))
+    }
+
+    /// Fetch responses from a -completed- signer context
+    /// 
+    /// Returns a slice of responses or None if incomplete
+    pub fn responses(&self) -> Option<&[CurveScalar]> {
+        match self.complete {
+            true => Some(self.responses.as_ref()),
+            false => None,
+        }
     }
 }

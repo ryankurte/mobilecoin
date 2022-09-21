@@ -1,6 +1,6 @@
 // Copyright (c) 2018-2022 The MobileCoin Foundation
 
-use core::{fmt::Debug, ops::Index};
+use core::{fmt::Debug};
 
 use curve25519_dalek::ristretto::RistrettoPoint;
 use mc_crypto_hashes::{Blake2b512, Digest};

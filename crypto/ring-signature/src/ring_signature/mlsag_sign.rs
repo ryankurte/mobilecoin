@@ -185,7 +185,7 @@ impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSi
             challenges,
             responses,
             complete: false,
-        })    
+        })
     }
 
     /// Update signing context with provided tx_out.

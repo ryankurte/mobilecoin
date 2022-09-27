@@ -34,6 +34,9 @@ pub enum Error {
 
     /// Unexpected tx_out index
     UnexpectedTxout,
+
+    /// Invalid signing state
+    InvalidState,
 }
 
 impl From<mc_util_repr_bytes::LengthMismatch> for Error {

@@ -54,12 +54,8 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
         }
 
         // Setup buffers for recomputed_c and decompressed rings
-        let (mut challenges, mut responses) = (
-            heapless::Vec::<_, RING_SIZE>::new(),
-            heapless::Vec::<_, RESP_SIZE>::new(),
-        );
+        let mut responses = heapless::Vec::<_, RESP_SIZE>::new();
 
-        challenges.resize(ring_size, Scalar::zero()).unwrap();
         responses.resize(ring_size * 2, CurveScalar::from(Scalar::zero())).unwrap();
 
         let mut decompressed_ring = heapless::Vec::<_, RING_SIZE>::new();
@@ -68,17 +64,15 @@ impl <const RING_SIZE: usize, const RESP_SIZE: usize> RingMLSAG<RING_SIZE, RESP_
         }
 
         // Perform ring signing
-        let key_image = opts.sign(&decompressed_ring[..], rng, &mut challenges, &mut responses)?;
+        let (key_image, c_zero) = opts.sign(&decompressed_ring[..], rng,  &mut responses)?;
 
 
         let r = RingMLSAG {
-            c_zero: CurveScalar::from(challenges[0]),
+            c_zero,
             key_image,
             responses,
         };
 
-        // Zeroize buffers
-        challenges.iter_mut().for_each(|v| v.zeroize() );
 
         Ok(r)
     }

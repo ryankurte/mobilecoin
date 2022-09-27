@@ -50,9 +50,8 @@ impl <'a> MlsagSignParams<'a> {
         // Note: this `mut rng` can just be `rng` if this is merged upstream:
         // https://github.com/dalek-cryptography/curve25519-dalek/pull/394
         rng: impl CryptoRngCore,
-        challenges: &mut [Scalar],
         responses: &mut [CurveScalar],
-    ) -> Result<KeyImage, Error> {
+    ) -> Result<(KeyImage, CurveScalar), Error> {
         let ring_size = ring.size();
 
         if self.real_index >= ring_size {
@@ -60,11 +59,6 @@ impl <'a> MlsagSignParams<'a> {
         }
 
         // Check buffer lengths are correct
-
-        // `challenges` must contain `ring_size` elements.
-        if challenges.len() != ring_size {
-            return Err(Error::LengthMismatch(ring_size, challenges.len()));
-        }
 
         // `responses` must contain `2 * ring_size` elements.
         if responses.len() != 2 * ring_size {
@@ -75,7 +69,7 @@ impl <'a> MlsagSignParams<'a> {
         ring.check()?;
 
         // Setup signing context
-        let mut sign_ctx = MlsagSignCtx::init(&self, rng, challenges, responses)?;
+        let mut sign_ctx = MlsagSignCtx::init(&self, rng, responses)?;
 
         // Iterate around the ring, starting at real_index.
         // NOTE: THIS REORDERING IS CRITICAL FOR PIECEWISE COMPUTATION
@@ -87,9 +81,9 @@ impl <'a> MlsagSignParams<'a> {
         }
 
         // "Close the loop" by computing responses for the real index.
-        let (key_image, _) = sign_ctx.finalise(&self)?;
+        let (key_image, c_zero) = sign_ctx.finalise(&self)?;
 
-        Ok(key_image)
+        Ok((key_image, c_zero))
     }
 }
 
@@ -98,7 +92,7 @@ impl <'a> MlsagSignParams<'a> {
 /// WARNING: MISUSE OF THIS API MAY GENERATE INVALID RINGS, 
 /// SEE [`MlsagSign`] FOR A PREFERRED HIGHER LEVEL ABSTRACTION
 #[derive(Debug, Zeroize)]
-pub struct MlsagSignCtx<C: AsMut<[Scalar]>, R: AsMut<[CurveScalar]>> {
+pub struct MlsagSignCtx<R: AsMut<[CurveScalar]>> {
     alpha_0: Scalar,
     alpha_1: Scalar,
     G: RistrettoPoint,
@@ -111,8 +105,11 @@ pub struct MlsagSignCtx<C: AsMut<[Scalar]>, R: AsMut<[CurveScalar]>> {
     /// Number of rings computed
     ring_count: usize,
 
-    challenges: C,
     responses: R,
+
+    real_challenge: Option<Scalar>,
+    last_challenge: Option<Scalar>,
+    zeroth_challenge: Option<Scalar>,
 
     #[zeroize(skip)]
     key_image: KeyImage,
@@ -124,12 +121,11 @@ pub struct MlsagSignCtx<C: AsMut<[Scalar]>, R: AsMut<[CurveScalar]>> {
 }
 
 #[allow(dead_code)]
-impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSignCtx<C, R> {
+impl <R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSignCtx<R> {
     /// Initialise signing state, including `challenges` and `responses` working buffers
     pub fn init<'a>(
         params: &'a MlsagSignParams<'a>,
         mut rng: impl CryptoRngCore,
-        mut challenges: C,
         mut responses: R,
     ) -> Result<Self, Error> {
 
@@ -139,12 +135,9 @@ impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSi
             "basepoint for blindings mismatch"
         );
 
-        let (c, r) = (challenges.as_mut(), responses.as_mut());
+        let r = responses.as_mut();
 
         // Check buffer lengths are correct for ring size
-        if c.len() != params.ring_size {
-            return Err(Error::LengthMismatch(params.ring_size, c.len()));
-        }
         if r.len() != params.ring_size * 2 {
             return Err(Error::LengthMismatch(params.ring_size * 2, r.len()));
         }
@@ -159,9 +152,6 @@ impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSi
         // This ensures that each address and commitment encodes a valid Ristretto
         // point.
         let output_commitment = Commitment::new(params.value, *params.output_blinding, params.generator);
-
-        // Challenges `c_0, ... c_{ring_size - 1}`.
-        c.iter_mut().for_each(|v| *v = Scalar::zero() );
 
         // Responses `r_{0,0}, r_{0,1}, ... , r_{ring_size-1,0}, r_{ring_size-1,1}`.
         r.iter_mut().for_each(|v| *v = CurveScalar::from(Scalar::zero()) );
@@ -182,7 +172,9 @@ impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSi
             alpha_1: Scalar::random(&mut rng),
             ring_count: 0,
             real_input: None,
-            challenges,
+            real_challenge: None,
+            last_challenge: None,
+            zeroth_challenge: None,
             responses,
             complete: false,
         })
@@ -199,7 +191,7 @@ impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSi
     
         let MlsagSignParams{ real_index, message, ring_size, .. } = params;
 
-        let (challenges, responses) = (self.challenges.as_mut(), self.responses.as_mut());
+        let responses = self.responses.as_mut();
 
         // Check tx_out index matches current state
         if i != (real_index + self.ring_count) % ring_size {
@@ -221,6 +213,12 @@ impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSi
             let L1 = self.alpha_1 * self.G;
             (L0, R0, L1)
         } else {
+            let last_challenge = match self.last_challenge {
+                Some(c) => c,
+                // TODO: replace with a better error
+                None => return Err(Error::IndexOutOfBounds),
+            };
+
             // c_{i+1} = Hn( m | key_image | r_{i,0} * G + c_i * P_i | r_{i,0} * Hp(P_i) +
             // c_i * I | r_{i,1} * G + c_i * Z_i )         = Hn( m |
             // key_image |           L0            |               R0            |
@@ -235,19 +233,36 @@ impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSi
             // There is no R1 term because no key image is needed for the commitment to
             // zero.
 
-            let L0 = responses[2 * i].scalar * self.G + challenges[i] * P_i.as_ref();
-            let R0 = responses[2 * i].scalar * hash_to_point(P_i) + challenges[i] * self.I;
+            let L0 = responses[2 * i].scalar * self.G + last_challenge * P_i.as_ref();
+            let R0 = responses[2 * i].scalar * hash_to_point(P_i) + last_challenge * self.I;
             let L1 =
-                responses[2 * i + 1].scalar * self.G + challenges[i] * (self.output_commitment.point - input_commitment.point);
+                responses[2 * i + 1].scalar * self.G + last_challenge * (self.output_commitment.point - input_commitment.point);
             (L0, R0, L1)
         };
 
-        challenges[(i + 1) % ring_size] = challenge(message, &self.key_image, &L0, &R0, &L1);
+        // Generate the challenge for the _next_ ring entry 
+        let c = challenge(message, &self.key_image, &L0, &R0, &L1);
 
-        // Cache real txout for balance check
+        // Cache the real input for balance checking
         if i == *real_index {
             self.real_input = Some(tx_out.clone());
         }
+
+        // This logic is a little strange because we're generating the (i+1)th challenge, which can't be cached at step i because this might not yet be generated...
+
+        // If the next entry is the real entry, store the challenge for balance checking
+        if (i + 1) % ring_size == *real_index {
+            // Cache real challenge
+            self.real_challenge = Some(c.clone());
+        }
+
+        // If the next entry is the zeroth entry, store c_zero
+        if (i + 1) % ring_size == 0 {
+            self.zeroth_challenge = Some(c.clone());
+        }
+
+        // Store the generated challenge for the next iteration
+        self.last_challenge = Some(c.clone());
 
         self.ring_count += 1;
 
@@ -262,20 +277,26 @@ impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSi
         
         let MlsagSignParams{ ring_size, real_index, .. } = params;
 
-        let (challenges, responses) = (self.challenges.as_mut(), self.responses.as_mut());
+        let responses = self.responses.as_mut();
 
         // Check ring size matches added entries
         if *ring_size != self.ring_count {
             return Err(Error::IndexOutOfBounds);
         }
 
+        // Check we have zeroth and real challenges
+        let (_c_real, _c_zero) = match (self.real_challenge, self.zeroth_challenge) {
+            (Some(r), Some(z)) => (r, z),
+            _ => return Err(Error::InvalidState),
+        };
+
         // "Close the loop" by computing responses for the real index.
 
         let s: Scalar = *params.onetime_private_key.as_ref();
-        responses[2 * real_index].scalar = self.alpha_0 - challenges[*real_index] * s;
+        responses[2 * real_index].scalar = self.alpha_0 - _c_real * s;
 
         let z: Scalar = *params.output_blinding - *params.blinding;
-        responses[2 * real_index + 1].scalar = self.alpha_1 - challenges[*real_index] * z;
+        responses[2 * real_index + 1].scalar = self.alpha_1 - _c_real * z;
 
         if params.check_value_is_preserved {
             let (_, input_commitment) = match self.real_input {
@@ -293,7 +314,7 @@ impl <C: AsMut<[Scalar]>, R: AsRef<[CurveScalar]> + AsMut<[CurveScalar]>>MlsagSi
 
         Ok((
             self.key_image.clone(),
-            CurveScalar::from(challenges[0]),
+            CurveScalar::from(_c_zero),
         ))
     }
 

@@ -163,8 +163,7 @@ impl RingMLSAG {
         let ring_size = ring.len();
         
         // Setup buffers
-        let (mut challenges, mut responses, mut decompressed_ring) = (
-            alloc::vec![Scalar::zero(); ring_size],
+        let (mut responses, mut decompressed_ring) = (
             alloc::vec![CurveScalar::from(Scalar::zero()); 2 * ring_size],
             alloc::vec![(RistrettoPublic::default(), Commitment::default()); ring_size],
         );
@@ -186,17 +185,16 @@ impl RingMLSAG {
             generator,
             check_value_is_preserved,
         };
-        let key_image = opts.sign(&decompressed_ring[..], rng, &mut challenges, &mut responses)?;
+        let (key_image, c_zero) = opts.sign(&decompressed_ring[..], rng,  &mut responses)?;
 
         // Build MLSAG output
         let res = RingMLSAG {
-            c_zero: CurveScalar::from(challenges[0]),
+            c_zero,
             responses,
             key_image,
         };
 
         // Zeroize buffers
-        challenges.iter_mut().for_each(|v| v.zeroize() );
         decompressed_ring.iter_mut().for_each(|(p, _c)| p.zeroize() );
 
         Ok(res)

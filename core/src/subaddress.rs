@@ -14,7 +14,7 @@ use crate::{
 /// Generate a subaddress for a given input key set
 pub trait Subaddress {
     /// Subaddress type
-    type Output: core::fmt::Debug;
+    type Output;
 
     /// Generate the subaddress for the corresponding index
     fn subaddress(&self, index: u64) -> Self::Output;

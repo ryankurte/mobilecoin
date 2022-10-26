@@ -3100,6 +3100,7 @@ dependencies = [
  "mc-util-from-random",
  "mc-util-test-vector",
  "mc-util-test-with-data",
+ "prost",
  "rand_core 0.6.4",
  "serde",
  "serde_json",

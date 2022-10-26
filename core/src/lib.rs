@@ -9,7 +9,7 @@
 #![deny(unsafe_code)]
 
 // Re-export shared type modules
-pub use mc_core_types::{account, keys};
+pub use mc_core_types::{account, keys, memo};
 
 pub mod consts;
 

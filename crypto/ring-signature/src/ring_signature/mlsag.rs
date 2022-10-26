@@ -116,6 +116,8 @@ impl RingMLSAG {
         output_blinding: &Scalar,
         generator: &PedersenGens,
         check_value_is_preserved: bool,
+        // Note: this `mut rng` can just be `rng` if this is merged upstream:
+        // https://github.com/dalek-cryptography/curve25519-dalek/pull/394
         rng: &mut dyn CryptoRngCore,
     ) -> Result<Self, Error> {
         let ring_size = ring.len();
@@ -247,7 +249,7 @@ mod mlsag_tests {
                     let blinding = Scalar::random(rng);
                     CompressedCommitment::new(value, blinding, &generator)
                 };
-                ring.push(ReducedTxOut {
+                let _ = ring.push(ReducedTxOut {
                     public_key,
                     target_key,
                     commitment,
@@ -270,7 +272,7 @@ mod mlsag_tests {
             };
 
             let real_index = rng.next_u64() as usize % (num_mixins + 1);
-            ring.insert(real_index, reduced_tx_out);
+            let _ = ring.insert(real_index, reduced_tx_out);
             assert_eq!(ring.len(), num_mixins + 1);
 
             Self {
@@ -672,7 +674,7 @@ mod mlsag_tests {
             // Modify the signature to have too many responses.
             {
                 let mut invalid_signature = signature;
-                invalid_signature.responses.push(CurveScalar::from_random(&mut rng));
+                let _ = invalid_signature.responses.push(CurveScalar::from_random(&mut rng));
 
                 let result =
                     invalid_signature.verify(&params.message, &params.ring, &output_commitment);

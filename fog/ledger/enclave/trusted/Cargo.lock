@@ -87,9 +87,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.66"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
+checksum = "7825f6833612eb2414095684fcf6c635becf3ce97fe48cf6421321e93bfbd53c"
 
 [[package]]
 name = "arrayref"
@@ -716,7 +716,6 @@ dependencies = [
  "displaydoc",
  "hkdf",
  "mc-account-keys-types",
- "mc-core",
  "mc-crypto-digestible",
  "mc-crypto-hashes",
  "mc-crypto-keys",
@@ -867,31 +866,6 @@ dependencies = [
  "sha3",
  "siphasher",
  "slog",
-]
-
-[[package]]
-name = "mc-core"
-version = "2.0.0"
-dependencies = [
- "anyhow",
- "curve25519-dalek",
- "ed25519-dalek",
- "glob",
- "hkdf",
- "mc-core-types",
- "mc-crypto-hashes",
- "mc-crypto-keys",
- "sha2",
- "zeroize",
-]
-
-[[package]]
-name = "mc-core-types"
-version = "2.0.0"
-dependencies = [
- "curve25519-dalek",
- "mc-crypto-keys",
- "zeroize",
 ]
 
 [[package]]

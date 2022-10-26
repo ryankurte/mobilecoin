@@ -19,6 +19,7 @@ ed25519-dalek = { version = "2.0.0-pre.1", default-features = false, features = 
 
 # External dependencies
 displaydoc = { version = "0.2", default-features = false }
+heapless = "0.7.16"
 hex_fmt = { version = "0.3", optional = true }
 
 # MobileCoin dependencies

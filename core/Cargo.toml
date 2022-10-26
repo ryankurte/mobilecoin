@@ -48,4 +48,4 @@ glob = { version = "0.3.0" }
 [[example]]
 name = "slip10"
 path = "examples/slip10.rs"
-required-features = [ "bip39" ]
+required-features = ["bip39"]

@@ -114,9 +114,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.66"
+version = "1.0.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
+checksum = "508b352bb5c066aac251f6daf6b36eccd03e8a88e8081cd44959ea277a3af9a8"
 
 [[package]]
 name = "arc-swap"
@@ -664,14 +664,9 @@ version = "3.2.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86447ad904c7fb335a790c9d7fe3d0d971dc523b8ccd1561a520de9a85302750"
 dependencies = [
- "atty",
  "bitflags",
- "clap_derive 3.2.18",
  "clap_lex 0.2.2",
  "indexmap",
- "once_cell",
- "strsim 0.10.0",
- "termcolor",
  "textwrap 0.15.1",
 ]
 
@@ -683,24 +678,11 @@ checksum = "6bf8832993da70a4c6d13c581f4463c2bdda27b9bf1c5498dc4365543abe6d6f"
 dependencies = [
  "atty",
  "bitflags",
- "clap_derive 4.0.13",
+ "clap_derive",
  "clap_lex 0.3.0",
  "once_cell",
  "strsim 0.10.0",
  "termcolor",
-]
-
-[[package]]
-name = "clap_derive"
-version = "3.2.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea0c8bce528c4be4da13ea6fead8965e95b6073585a2f05204bd8f4119f82a65"
-dependencies = [
- "heck",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -2040,9 +2022,9 @@ checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
 
 [[package]]
 name = "libc"
-version = "0.2.136"
+version = "0.2.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55edcf6c0bb319052dea84732cf99db461780fd5e8d3eb46ab6ff312ab31f197"
+checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
 
 [[package]]
 name = "libloading"
@@ -2213,7 +2195,6 @@ dependencies = [
  "displaydoc",
  "hkdf",
  "mc-account-keys-types",
- "mc-core",
  "mc-crypto-digestible",
  "mc-crypto-hashes",
  "mc-crypto-keys",
@@ -2231,6 +2212,23 @@ dependencies = [
  "rand_hc 0.3.1",
  "subtle",
  "tempdir",
+ "zeroize",
+]
+
+[[package]]
+name = "mc-account-keys-slip10"
+version = "2.1.0-pre0"
+dependencies = [
+ "curve25519-dalek",
+ "displaydoc",
+ "hex",
+ "hex_fmt",
+ "hkdf",
+ "mc-account-keys",
+ "mc-crypto-keys",
+ "sha2 0.10.6",
+ "slip10_ed25519",
+ "tiny-bip39",
  "zeroize",
 ]
 
@@ -2944,42 +2942,6 @@ dependencies = [
  "mc-util-grpc",
  "mc-util-uri",
  "serde_json",
-]
-
-[[package]]
-name = "mc-core"
-version = "2.0.0"
-dependencies = [
- "anyhow",
- "clap 3.2.22",
- "curve25519-dalek",
- "ed25519-dalek",
- "glob 0.3.0",
- "hex",
- "hkdf",
- "lazy_static",
- "mc-core-types",
- "mc-crypto-hashes",
- "mc-crypto-keys",
- "mc-test-vectors-definitions",
- "mc-util-test-vector",
- "mc-util-test-with-data",
- "serde",
- "serde_json",
- "sha2 0.10.6",
- "slip10_ed25519",
- "tiny-bip39",
- "zeroize",
-]
-
-[[package]]
-name = "mc-core-types"
-version = "2.0.0"
-dependencies = [
- "curve25519-dalek",
- "mc-crypto-keys",
- "serde",
- "zeroize",
 ]
 
 [[package]]
@@ -4647,6 +4609,7 @@ dependencies = [
  "libz-sys",
  "lmdb-rkv",
  "mc-account-keys",
+ "mc-account-keys-slip10",
  "mc-api",
  "mc-attest-core",
  "mc-attest-verifier",
@@ -4659,7 +4622,6 @@ dependencies = [
  "mc-consensus-enclave-api",
  "mc-consensus-enclave-measurement",
  "mc-consensus-scp",
- "mc-core",
  "mc-crypto-digestible",
  "mc-crypto-hashes",
  "mc-crypto-keys",
@@ -5011,7 +4973,7 @@ version = "2.1.0-pre0"
 dependencies = [
  "hex",
  "mc-account-keys",
- "mc-core",
+ "mc-account-keys-slip10",
  "mc-test-vectors-definitions",
  "mc-util-test-vector",
  "tiny-bip39",
@@ -5404,8 +5366,8 @@ dependencies = [
  "displaydoc",
  "hex",
  "mc-account-keys",
+ "mc-account-keys-slip10",
  "mc-api",
- "mc-core",
  "mc-crypto-rand",
  "mc-crypto-x509-test-vectors",
  "mc-util-from-random",

@@ -22,8 +22,8 @@ x25519-dalek = { version = "2.0.0-pre.2", default-features = false, features = [
 # if `mc-crypto-dalek/default` is selected we'll pull in the avx or u64 backends based on the target,
 # otherwise backend selection is up to the user
 
-[target.'cfg(all(any(target_feature = "avx2", target_feature = "avx"), target_arch = "x86_64"))'.dependencies]
+[target.'cfg(any(target_feature = "avx2", target_feature = "avx"))'.dependencies]
 mc-crypto-dalek-backend-simd = { path = "./simd", default_features = false }
 
-[target.'cfg(all(not(any(target_feature = "avx2", target_feature = "avx")), target_arch = "x86_64"))'.dependencies]
+[target.'cfg(all(not(any(target_feature = "avx2", target_feature = "avx"))))'.dependencies]
 mc-crypto-dalek-backend-u64 = { path = "./u64", default_features = false }

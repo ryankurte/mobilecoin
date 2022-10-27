@@ -3,6 +3,8 @@
 use core::{fmt, hash::Hash, ops::Deref, str::FromStr};
 use displaydoc::Display;
 use mc_crypto_digestible::Digestible;
+
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// A block version number that is known to be less or equal to

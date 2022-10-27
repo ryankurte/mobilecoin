@@ -4,6 +4,7 @@
 
 use core::{fmt, hash::Hash, num::ParseIntError, ops::Deref, str::FromStr};
 use mc_crypto_digestible::Digestible;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use zeroize::Zeroize;
@@ -13,16 +14,15 @@ use zeroize::Zeroize;
     Clone,
     Copy,
     Debug,
-    Deserialize,
     Digestible,
     Eq,
     Hash,
     Ord,
     PartialEq,
     PartialOrd,
-    Serialize,
     Zeroize,
 )]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TokenId(u64);
 
 impl From<u64> for TokenId {

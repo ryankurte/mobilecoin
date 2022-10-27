@@ -49,6 +49,12 @@ impl From<&CompressedRistretto> for CompressedCommitment {
     }
 }
 
+impl From<CompressedRistretto> for CompressedCommitment {
+    fn from(source: CompressedRistretto) -> Self {
+        Self { point: source }
+    }
+}
+
 impl AsRef<[u8; 32]> for CompressedCommitment {
     fn as_ref(&self) -> &[u8; 32] {
         self.point.as_bytes()

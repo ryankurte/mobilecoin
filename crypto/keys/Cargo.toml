@@ -7,8 +7,8 @@ description = "MobileCoin Diffie-Hellman Key Exchange and Digital Signatures"
 readme = "README.md"
 
 [features]
-alloc = ["base64/alloc", "ed25519-dalek/alloc", "ed25519-dalek/alloc", "mc-crypto-digestible/alloc", "mc-crypto-digestible-signature/alloc", "mc-crypto-hashes/alloc"]
-serde = ["dep:serde", "ed25519/serde", "ed25519-dalek/serde", "ed25519-dalek/serde", "mc-util-repr-bytes/serde"]
+alloc = ["base64/alloc", "mc-crypto-dalek/alloc", "mc-crypto-digestible/alloc", "mc-crypto-digestible-signature/alloc" ]
+serde = ["dep:serde", "ed25519/serde", "mc-crypto-dalek/serde", "mc-util-repr-bytes/serde"]
 prost = []
 default = ["alloc", "serde", "prost", "mc-util-repr-bytes/default"]
 

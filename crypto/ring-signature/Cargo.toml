@@ -6,12 +6,12 @@ edition = "2021"
 readme = "README.md"
 
 [features]
-alloc = [ "serde/alloc", "mc-crypto-digestible/alloc", "mc-util-repr-bytes/alloc", "mc-transaction-types/alloc", "mc-crypto-dalek/alloc", "mc-crypto-hashes/alloc" ]
+alloc = [ "serde/alloc", "mc-crypto-digestible/alloc", "mc-util-repr-bytes/alloc", "mc-transaction-types/alloc", "mc-crypto-dalek/alloc" ]
 serde = [ "dep:serde", "mc-crypto-dalek/serde", "mc-crypto-keys/serde" ]
 prost = [ "dep:prost", "mc-crypto-keys/prost", "mc-util-serial" ]
 internals = []
 
-default = [ "alloc", "serde", "prost", "mc-util-repr-bytes/default", "mc-util-serial/default", "mc-crypto-dalek/default", "mc-crypto-hashes/default" ]
+default = [ "alloc", "serde", "prost", "mc-util-repr-bytes/default", "mc-crypto-dalek/default", "mc-crypto-hashes/default" ]
 
 [dependencies]
 
@@ -20,7 +20,7 @@ ed25519-dalek = { version = "2.0.0-pre.1", default-features = false, features = 
 
 # External dependencies
 displaydoc = { version = "0.2", default-features = false }
-heapless = "0.7.16"
+heapless = { version = "0.7.16", default_features = false }
 hex_fmt = { version = "0.3", optional = true }
 
 # MobileCoin dependencies

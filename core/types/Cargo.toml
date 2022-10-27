@@ -7,7 +7,7 @@ description = "MobileCoin Core Types"
 readme = "README.md"
 
 [features]
-serde = [ "dep:serde" ]
+serde = ["dep:serde"]
 
 [dependencies]
 serde = { version = "1.0.144", optional = true, default-features = false, features = [ "derive" ] }

@@ -1,3 +1,5 @@
+// Copyright (c) 2018-2022 The MobileCoin Foundation
+
 #![deny(missing_docs)]
 
 //! Intel SGX SIGSTRUCT Dump Utility
@@ -20,10 +22,10 @@ use std::{
 #[derive(Debug, Parser)]
 struct Config {
     /// The SIGSTRUCT file to read, or stdin
-    #[clap(parse(from_os_str))]
+    #[clap(value_parser)]
     pub input: Option<PathBuf>,
     /// The output location, or stdout
-    #[clap(parse(from_os_str))]
+    #[clap(value_parser)]
     pub output: Option<PathBuf>,
 }
 

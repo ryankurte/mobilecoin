@@ -8,6 +8,9 @@
 #![warn(missing_docs)]
 #![deny(unsafe_code)]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 // Re-export shared type modules
 pub use mc_core_types::{account, keys};
 
@@ -16,6 +19,10 @@ pub mod consts;
 pub mod subaddress;
 
 pub mod slip10;
+
+pub mod memo;
+#[cfg(feature = "traits")]
+pub mod traits;
 
 #[cfg(feature = "protos")]
 pub mod protos;

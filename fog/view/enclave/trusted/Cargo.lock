@@ -1016,15 +1016,20 @@ dependencies = [
 name = "mc-core"
 version = "2.0.0"
 dependencies = [
+ "aes",
  "anyhow",
  "curve25519-dalek",
  "ed25519-dalek",
+ "generic-array",
  "glob",
  "hkdf",
  "mc-core-types",
  "mc-crypto-dalek",
  "mc-crypto-hashes",
  "mc-crypto-keys",
+ "mc-crypto-memo-mac",
+ "mc-crypto-ring-signature",
+ "rand_core",
  "sha2",
  "zeroize",
 ]
@@ -1165,6 +1170,15 @@ dependencies = [
  "subtle",
  "x25519-dalek",
  "zeroize",
+]
+
+[[package]]
+name = "mc-crypto-memo-mac"
+version = "2.0.0"
+dependencies = [
+ "hmac",
+ "mc-crypto-keys",
+ "sha2",
 ]
 
 [[package]]

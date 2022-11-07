@@ -30,13 +30,15 @@
 //! - When interpretting memos on TxOut's that you recieved, the memo module
 //!   functionality can be used to assist.
 
-use aes::{
-    cipher::{FromBlockCipher, StreamCipher},
-    Aes256, Aes256Ctr, NewBlockCipher,
-};
+
 use core::{
     convert::{TryFrom, TryInto},
     str::Utf8Error,
+};
+
+use aes::{
+    cipher::{FromBlockCipher, StreamCipher},
+    Aes256, Aes256Ctr, NewBlockCipher,
 };
 use displaydoc::Display;
 use generic_array::{
@@ -45,6 +47,11 @@ use generic_array::{
     GenericArray,
 };
 use hkdf::Hkdf;
+use serde::{Deserialize, Serialize};
+use sha2::Sha512;
+use zeroize::Zeroize;
+
+use mc_core::memo::Memo;
 use mc_crypto_digestible::Digestible;
 use mc_crypto_keys::{CompressedRistrettoPublic, RistrettoPublic};
 use mc_util_repr_bytes::{
@@ -52,9 +59,6 @@ use mc_util_repr_bytes::{
     derive_prost_message_from_repr_bytes, derive_repr_bytes_from_as_ref_and_try_from,
     derive_serde_from_repr_bytes,
 };
-use serde::{Deserialize, Serialize};
-use sha2::Sha512;
-use zeroize::Zeroize;
 
 /// An encrypted memo, which can be decrypted by the recipient of a TxOut.
 #[derive(Clone, Copy, Default, Digestible, Eq, Hash, Ord, PartialEq, PartialOrd, Zeroize)]
@@ -147,17 +151,22 @@ impl MemoPayload {
     ///
     /// The shared-secret is expected to be the TxOut shared secret of the TxOut
     /// that this memo is associated to.
-    pub fn encrypt(mut self, shared_secret: &RistrettoPublic) -> EncryptedMemo {
-        self.apply_keystream(shared_secret);
-        EncryptedMemo(self.0)
+    pub fn encrypt(self, shared_secret: &RistrettoPublic) -> EncryptedMemo {
+        let MemoPayload(mut payload) = self;
+        
+        Memo::apply_keystream(shared_secret.to_bytes(), &mut payload[..]);
+
+        EncryptedMemo(payload)
     }
 
     /// Decrypt an EncryptedMemoPayload using a given shared secret, consuming
     /// it and returning the underlying buffer.
     pub fn decrypt_from(encrypted: &EncryptedMemo, shared_secret: &RistrettoPublic) -> Self {
-        let mut result = Self::from(encrypted.0);
-        result.apply_keystream(shared_secret);
-        result
+        let mut payload = encrypted.0.clone();
+
+        Memo::apply_keystream(shared_secret.to_bytes(), &mut payload[..]);
+
+        MemoPayload(payload)
     }
 
     // Apply AES256 keystream to internal buffer.
@@ -166,6 +175,8 @@ impl MemoPayload {
     //
     // The argument is supposed to be the TxOut shared secret associated to the
     // memo.
+    #[deprecated(note="replaced by mc_core::memo::Memo::apply_keystream")]
+    #[allow(unused)]
     fn apply_keystream(&mut self, shared_secret: &RistrettoPublic) {
         // Use HKDF-SHA512 to produce an AES key and AES nonce
         let shared_secret = CompressedRistrettoPublic::from(shared_secret);
@@ -246,6 +257,9 @@ impl From<Utf8Error> for MemoError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use rand_core::RngCore;
+
     use mc_util_from_random::FromRandom;
     use mc_util_test_helper::{RngType, SeedableRng};
 
@@ -279,5 +293,29 @@ mod tests {
             e_memo2.decrypt(&key1),
             "decrypting with wrong key succeeded"
         );
+    }
+
+    /// Ensure replacement encrypt/decrypt matches previous implementation
+    /// 
+    /// TODO: this could be removed if we're happy there's existing test coverage
+    #[test]
+    #[allow(deprecated)]
+    fn encrypt_decrypt_compat() {
+        let mut rng = RngType::seed_from_u64(37);
+
+        let shared_secret = RistrettoPublic::from_random(&mut rng);
+
+        let mut payload = [0u8; 64];
+        rng.fill_bytes(&mut payload[..]);
+
+        let mut m1 = MemoPayload::new([1, 2], payload.clone());
+
+        // Encrypt with prior impl
+        m1.apply_keystream(&shared_secret);
+        assert_ne!(m1.get_memo_data(), &payload[..]);
+
+        // Decrypt with updated impl
+        Memo::apply_keystream(shared_secret.to_bytes(), &mut m1.0);
+        assert_eq!(m1.get_memo_data(), &payload[..]);
     }
 }

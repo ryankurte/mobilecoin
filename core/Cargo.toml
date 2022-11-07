@@ -20,7 +20,7 @@ aes = { version = "0.7.5", default_features = false, features = [ "ctr" ] }
 async-trait = { version = "0.1.58", optional = true }
 curve25519-dalek = { version = "4.0.0-pre.2", default-features = false }
 ed25519-dalek = { version = "2.0.0-pre.1", default-features = false }
-generic-array = { version = "*", default-features = false, features = [ "more_lengths" ] }
+generic-array = { version = "0.14.6", default-features = false, features = [ "more_lengths" ] }
 hkdf = { version = "0.12.3" }
 rand_core = { version = "0.6.4", default-features = false }
 serde = { version = "1.0", optional = true, default-features = false, features = [ "derive" ] }
@@ -44,6 +44,7 @@ hex = { version = "0.4.3", default-features = false }
 lazy_static = { version = "1.4.0" }
 
 mc-test-vectors-definitions = { path = "../test-vectors/definitions" }
+mc-util-from-random = { path = "../util/from-random" }
 mc-util-test-vector = { path = "../util/test-vector" }
 mc-util-test-with-data = { path = "../util/test-with-data" }
 

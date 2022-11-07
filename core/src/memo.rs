@@ -27,63 +27,50 @@ use mc_crypto_keys::{
 };
 use mc_crypto_memo_mac::compute_category1_hmac;
 
-/// Cleartext memo payload container
-#[derive(Clone, PartialEq, Debug)]
-pub struct MemoPayloadCleartext([u8; 66]);
+/// Memo helper / marker type
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct Memo;
 
-/// Encrypted memo payload container
-#[derive(Clone, PartialEq, Debug)]
-pub struct MemoPayloadEncrypted([u8; 66]);
 
-impl MemoPayloadCleartext {
+/// Memo HMAC container type
+#[derive(Clone, PartialEq, Debug)]
+pub struct Hmac ([u8; 16]);
+
+
+impl Memo {
     /// Encrypt a cleartext memo payload
-    pub fn encrypt(self,
+    pub fn encrypt(
         sender_default_spend_private: &SubaddressSpendPrivate,
         receiver_view_public: &SubaddressViewPublic,
-    ) -> MemoPayloadEncrypted {
-        let MemoPayloadCleartext(mut payload) = self;
-
+        payload: &mut [u8; 66],
+    ) {
         // Perform KX against receiver subaddress view pubic key
         let shared_secret = shared_secret(sender_default_spend_private, receiver_view_public);
 
         // Apply encryption
-        apply_keystream(&shared_secret, &mut payload);
-
-        // Return encrypted object
-        MemoPayloadEncrypted(payload)
+        Self::apply_keystream(&shared_secret, &mut payload[..]);
     }
-}
 
-impl MemoPayloadEncrypted {
     /// Decrypt an encrypted memo payload
-    pub fn decrypt(self,
+    pub fn decrypt(
         sender_default_spend_public: &SubaddressSpendPublic,
         receiver_view_private: &SubaddressViewPrivate,
-    ) -> MemoPayloadCleartext {
-        let MemoPayloadEncrypted(mut payload) = self;
-
+        payload: &mut [u8; 66],
+    ) {
         // Perform KX against sender subaddress spend public key
         let shared_secret = shared_secret(receiver_view_private, sender_default_spend_public);
 
         // Apply decryption
-        apply_keystream(&shared_secret, &mut payload);
-
-        // Return decrypted object
-        MemoPayloadCleartext(payload)
+        Self::apply_keystream(&shared_secret, &mut payload[..]);
     }
-}
 
-/// Memo HMAC container
-pub struct Hmac ([u8; 16]);
-
-impl Hmac {
-    /// Compute HMAC for a given memo body
-    pub fn build(
-        kind: [u8; 2],
-        data: &[u8; 48],
+    /// Compute HMAC for an incoming memo body
+    pub fn hmac_check(
         tx_out_public_key: &RistrettoPublic,
         sender_default_spend_public: &SubaddressSpendPublic,
         receiver_view_private: &SubaddressViewPrivate,
+        kind: [u8; 2],
+        data: &[u8; 48],
     ) -> Result<Hmac, ()> {
 
         // Compute shared secret
@@ -100,13 +87,13 @@ impl Hmac {
         Ok(Hmac(hmac_value))
     }
 
-    /// Compute received HMAC for a given memo body
-    pub fn check(
-        kind: [u8; 2],
-        data: &[u8; 48],
+    /// Compute HMAC for an outgoing memo body
+    pub fn hmac_sign(
         tx_out_public_key: &RistrettoPublic,
         sender_default_spend_private: &SubaddressSpendPrivate,
         receiver_view_public: &SubaddressViewPublic,
+        kind: [u8; 2],
+        data: &[u8; 48],
     ) -> Result<Hmac, ()> {
 
         // Compute shared secret
@@ -122,11 +109,33 @@ impl Hmac {
 
         Ok(Hmac(hmac_value))
     }
-    
+
+    /// Apply AES256 keystream to the provided memo buffer
+    pub fn apply_keystream(
+        shared_secret: impl AsRef<[u8]>,
+        buff: &mut [u8],
+    ) -> () {
+        // Use HKDF-SHA512 to produce an AES key and AES nonce
+        let kdf = Hkdf::<Sha512>::new(Some(b"mc-memo-okm"), shared_secret.as_ref());
+
+        // OKM is "output key material", see RFC HKDF for discussion of terms
+        let mut okm = GenericArray::<u8, U48>::default();
+        kdf.expand(b"", &mut okm[..])
+            .expect("Digest output size is insufficient");
+
+        let (key, nonce) = Split::<u8, U32>::split(okm);
+
+        // Apply AES-256 in counter mode to the buffer
+        let mut aes256ctr = Aes256Ctr::from_block_cipher(Aes256::new(&key), &nonce);
+        aes256ctr.apply_keystream(buff);
+    }
+
+
 }
 
-/// KX using sender default subaddress spend private and receiver subaddress view public
-/// to determine shared secret for memo signing / encryption
+
+/// KX using sender default subaddress spend and receiver subaddress view keys
+/// to determine shared secret for memo HMAC or encryption
 pub fn shared_secret(
     private_key: impl AsRef<RistrettoPrivate>,
     public_key: impl AsRef<RistrettoPublic>,
@@ -138,22 +147,103 @@ pub fn shared_secret(
     shared_secret
 }
 
-/// Apply AES256 keystream to the provided memo buffer
-fn apply_keystream(
-    shared_secret: &RistrettoSecret,
-    buff: &mut [u8],
-) -> () {
-    // Use HKDF-SHA512 to produce an AES key and AES nonce
-    let kdf = Hkdf::<Sha512>::new(Some(b"mc-memo-okm"), shared_secret.as_ref());
 
-    // OKM is "output key material", see RFC HKDF for discussion of terms
-    let mut okm = GenericArray::<u8, U48>::default();
-    kdf.expand(b"", &mut okm[..])
-        .expect("Digest output size is insufficient");
+#[cfg(test)]
+mod tests {
+    use rand_core::{OsRng, RngCore};
 
-    let (key, nonce) = Split::<u8, U32>::split(okm);
+    use mc_core_types::keys::*;
+    use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic};
+    use mc_util_from_random::FromRandom;
 
-    // Apply AES-256 in counter mode to the buffer
-    let mut aes256ctr = Aes256Ctr::from_block_cipher(Aes256::new(&key), &nonce);
-    aes256ctr.apply_keystream(buff);
+    use super::{Memo, shared_secret};
+
+    #[test]
+    fn key_exchange() {
+        // Setup keys
+        let (pri1, pri2) = (
+            SubaddressSpendPrivate::from(RistrettoPrivate::from_random(&mut OsRng{})),
+            SubaddressViewPrivate::from(RistrettoPrivate::from_random(&mut OsRng{})),
+        );
+        let (pub1, pub2) = (
+            SubaddressSpendPublic::from(&pri1),
+            SubaddressViewPublic::from(&pri2),
+        );
+
+        let s1 = shared_secret(&pri1, &pub2);
+        let s2 = shared_secret(&pri2, &pub1);
+
+        let (s1, s2): (&[u8], &[u8]) = (s1.as_ref(), s2.as_ref());
+
+        assert_eq!(&s1, &s2);
+    }
+
+    #[test]
+    fn encrypt_decrypt() {
+        // Setup keys
+        let (pri1, pri2) = (
+            SubaddressSpendPrivate::from(RistrettoPrivate::from_random(&mut OsRng{})),
+            SubaddressViewPrivate::from(RistrettoPrivate::from_random(&mut OsRng{})),
+        );
+        let (pub1, pub2) = (
+            SubaddressSpendPublic::from(&pri1),
+            SubaddressViewPublic::from(&pri2),
+        );
+
+        let key1 = RistrettoPrivate::from_random(&mut OsRng{});
+
+        let mut p1 = [0u8; 66];
+        OsRng{}.try_fill_bytes(&mut p1[..]).unwrap();
+
+        let mut e1 = p1.clone();
+        Memo::encrypt(&pri1, &pub2, &mut e1);
+
+        let mut d1 = e1.clone();
+        Memo::decrypt(&pub1, &pri2, &mut d1);
+
+        assert_eq!(p1, d1, "roundtrip failed");
+
+
+        let mut d2 = e1.clone();
+        Memo::decrypt(&pub1, &SubaddressViewPrivate::from(key1), &mut d2);
+
+        assert_ne!(p1, d2, "decrypt with wrong key succeeded");
+
+    }
+
+    #[test]
+    fn hmac() {
+        // Setup keys
+        let (pri1, pri2) = (
+            SubaddressSpendPrivate::from(RistrettoPrivate::from_random(&mut OsRng{})),
+            SubaddressViewPrivate::from(RistrettoPrivate::from_random(&mut OsRng{})),
+        );
+        let (pub1, pub2) = (
+            SubaddressSpendPublic::from(&pri1),
+            SubaddressViewPublic::from(&pri2),
+        );
+
+        let tx_out_public_key = RistrettoPublic::from_random(&mut OsRng{});
+
+        let mut data = [0u8; 48];
+        OsRng{}.fill_bytes(&mut data);
+
+        // Generate correct sender/receiver HMAC
+        let h1 = Memo::hmac_sign(&tx_out_public_key, &pri1, &pub2, [1, 2], &data);
+
+        let h2 = Memo::hmac_check(&tx_out_public_key, &pub1, &pri2, [1, 2], &data);
+
+        assert_eq!(h1, h2, "HMAC mismatch");
+
+        // Check HMACs for different memos do not match
+
+        let h3 = Memo::hmac_check(&tx_out_public_key, &pub1, &pri2, [1, 3], &data);
+        assert_ne!(h1, h3, "hmac with wrong kind matched");
+
+        let mut d1 = data.clone();
+        d1[0] = !d1[0];
+        let h4 = Memo::hmac_check(&tx_out_public_key, &pub1, &pri2, [1, 3], &d1);
+        assert_ne!(h1, h4, "hmac with wrong data matched");
+
+    }
 }

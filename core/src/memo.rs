@@ -34,8 +34,19 @@ pub struct Memo;
 
 /// Memo HMAC container type
 #[derive(Clone, PartialEq, Debug)]
-pub struct Hmac ([u8; 16]);
+pub struct Hmac (pub [u8; 16]);
 
+impl AsRef<[u8; 16]> for Hmac {
+    fn as_ref(&self) -> &[u8; 16] {
+        &self.0
+    }
+}
+
+impl From<Hmac> for [u8; 16] {
+    fn from(value: Hmac) -> Self {
+        value.0
+    }
+}
 
 impl Memo {
     /// Encrypt a cleartext memo payload
@@ -94,7 +105,7 @@ impl Memo {
         receiver_view_public: &SubaddressViewPublic,
         kind: [u8; 2],
         data: &[u8; 48],
-    ) -> Result<Hmac, ()> {
+    ) -> Hmac {
 
         // Compute shared secret
         let shared_secret = shared_secret(sender_default_spend_private, receiver_view_public);
@@ -107,7 +118,7 @@ impl Memo {
             &data,
         );
 
-        Ok(Hmac(hmac_value))
+        Hmac(hmac_value)
     }
 
     /// Apply AES256 keystream to the provided memo buffer

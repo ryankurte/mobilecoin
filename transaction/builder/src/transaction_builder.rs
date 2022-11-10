@@ -14,6 +14,7 @@ use core::{
     fmt::Debug,
 };
 use mc_account_keys::PublicAddress;
+use mc_core::traits::*;
 use mc_crypto_keys::{CompressedRistrettoPublic, RistrettoPrivate, RistrettoPublic};
 use mc_crypto_ring_signature_signer::RingSigner;
 use mc_fog_report_validation::FogPubkeyResolver;
@@ -32,7 +33,7 @@ use mc_transaction_extra::{
     SignedContingentInput, SignedContingentInputError, TxOutConfirmationNumber, UnsignedTx,
 };
 use mc_util_from_random::FromRandom;
-use rand_core::{CryptoRng, RngCore};
+use rand_core::{CryptoRngCore};
 
 /// A trait used to compare the transaction outputs
 pub trait TxOutputsOrdering {
@@ -63,6 +64,14 @@ pub struct TxOutContext {
     /// add_output/add_change_output
     pub shared_secret: RistrettoPublic,
 }
+
+/// [`Driver`] trait combines component traits for underlying cryptographic functions,
+/// supporting native execution or hardware offloading.
+pub trait Driver<E>: RingSigner<Error=E> + KeyImageComputer<Error=E> + MemoHmacSigner<Error=E> + MemoEncryptor<Error=E> {}
+
+impl <T, E> Driver<E> for T where
+    T: RingSigner<Error=E> + KeyImageComputer<Error=E> + MemoHmacSigner<Error=E> + MemoEncryptor<Error=E>,
+{}
 
 /// Helper utility for building and signing a CryptoNote-style transaction,
 /// and attaching fog hint and memos as appropriate.
@@ -424,7 +433,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
     /// * `amount` - The amount of this output
     /// * `recipient` - The recipient's public address
     /// * `rng` - RNG used to generate blinding for commitment
-    pub fn add_output<RNG: CryptoRng + RngCore>(
+    pub fn add_output<RNG: CryptoRngCore + Send + Sync>(
         &mut self,
         amount: Amount,
         recipient: &PublicAddress,
@@ -489,7 +498,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
     ///   change output. These can both be obtained from an account key, but
     ///   this API does not require the account key.
     /// * `rng` - RNG used to generate blinding for commitment
-    pub fn add_change_output<RNG: CryptoRng + RngCore>(
+    pub fn add_change_output<RNG: CryptoRngCore + Send + Sync>(
         &mut self,
         amount: Amount,
         change_destination: &ReservedSubaddresses,
@@ -535,7 +544,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
     /// used to set the caller's primary address as the Fog hint address
     /// and set their gift code subaddresses as the TxOut recipient.
     /// * `rng` - RNG used to generate blinding for commitment
-    pub fn add_gift_code_output<RNG: CryptoRng + RngCore>(
+    pub fn add_gift_code_output<RNG: CryptoRngCore + Send + Sync>(
         &mut self,
         amount: Amount,
         reserved_subaddresses: &ReservedSubaddresses,
@@ -584,7 +593,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
     /// * `fog_hint_address` - The public address used to create the fog hint
     /// * `memo_fn` - The memo function to use (see TxOut::new_with_memo)
     /// * `rng` - RNG used to generate blinding for commitment
-    fn add_output_with_fog_hint_address<RNG: CryptoRng + RngCore>(
+    fn add_output_with_fog_hint_address<RNG: CryptoRngCore + Send + Sync>(
         &mut self,
         amount: Amount,
         recipient: &PublicAddress,
@@ -674,7 +683,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
 
     /// Return low level data to sign and construct transactions with external
     /// signers
-    pub fn build_unsigned<T: RngCore + CryptoRng, O: TxOutputsOrdering>(
+    pub fn build_unsigned<T: CryptoRngCore, O: TxOutputsOrdering>(
         mut self,
     ) -> Result<UnsignedTx, TxBuilderError> {
         // Note: Origin block has block version zero, so some clients like slam that
@@ -779,7 +788,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
     }
 
     /// Consume the builder and return the transaction.
-    pub fn build<RNG: CryptoRng + RngCore, S: RingSigner + ?Sized>(
+    pub fn build<RNG: CryptoRngCore + Send + Sync, S: RingSigner + ?Sized>(
         self,
         ring_signer: &S,
         rng: &mut RNG,
@@ -791,7 +800,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
     /// Used only in testing library.
     #[cfg(feature = "test-only")]
     pub fn build_with_sorter<
-        RNG: CryptoRng + RngCore,
+        RNG: CryptoRngCore + Send + Sync,
         O: TxOutputsOrdering,
         S: RingSigner + ?Sized,
     >(
@@ -805,7 +814,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
     /// Consume the builder and return the transaction with a comparer
     /// (internal usage only).
     fn build_with_comparer_internal<
-        RNG: CryptoRng + RngCore,
+        RNG: CryptoRngCore + Send + Sync,
         O: TxOutputsOrdering,
         S: RingSigner + ?Sized,
     >(
@@ -828,7 +837,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
 /// * `fog_hint` - The encrypted fog hint to use
 /// * `memo_fn` - The memo function to use -- see TxOut::new_with_memo docu
 /// * `rng` -
-pub(crate) fn create_output_with_fog_hint<RNG: CryptoRng + RngCore>(
+pub(crate) fn create_output_with_fog_hint<RNG: CryptoRngCore + Send + Sync>(
     block_version: BlockVersion,
     amount: Amount,
     recipient: &PublicAddress,
@@ -861,7 +870,7 @@ pub(crate) fn create_output_with_fog_hint<RNG: CryptoRng + RngCore>(
 /// * `encrypted_fog_hint` - The fog hint to use for a TxOut.
 /// * `pubkey_expiry` - The block at which this fog pubkey expires, or
 ///   u64::max_value() Imposes a limit on tombstone block for the transaction
-pub(crate) fn create_fog_hint<RNG: RngCore + CryptoRng, FPR: FogPubkeyResolver>(
+pub(crate) fn create_fog_hint<RNG: CryptoRngCore, FPR: FogPubkeyResolver>(
     recipient: &PublicAddress,
     fog_resolver: &FPR,
     rng: &mut RNG,

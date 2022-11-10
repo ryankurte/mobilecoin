@@ -1,12 +1,17 @@
 // Copyright (c) 2018-2022 The MobileCoin Foundation
 
-use alloc::{string::String, vec::Vec};
+use core::fmt::Debug;
+use alloc::{string::String, vec::Vec, boxed::Box};
+
+use async_trait::async_trait;
 use displaydoc::Display;
+use rand_core::CryptoRngCore;
+use zeroize::Zeroize;
+
 use mc_crypto_keys::{KeyError, RistrettoPrivate};
 use mc_crypto_ring_signature::{Error as RingSignatureError, ReducedTxOut, RingMLSAG, Scalar};
 use mc_transaction_types::Amount;
-use rand_core::CryptoRngCore;
-use zeroize::Zeroize;
+
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -72,7 +77,13 @@ impl From<RistrettoPrivate> for OneTimeKeyDeriveData {
 /// represent either "local" keys or keys living on a remote device.
 ///
 /// A transaction builder can be built around this.
+#[async_trait]
 pub trait RingSigner {
+    /// Error type returned on sign failures.
+    /// 
+    /// Must support casting to `SignerError` for higher-level error handling
+    type Error: TryInto<SignerError> + Debug;
+
     /// Create an MLSAG signature. This is a signature that confers spending
     /// authority of a TxOut.
     ///
@@ -99,32 +110,35 @@ pub trait RingSigner {
     // that hardware wallets could observe and respect if we do actually have to
     // make changes to the MLSAG part. FIXME: Message argument should probably
     // be a &[u8; 32] after block version < 2 has been deprecated
-    fn sign(
+    async fn sign<RNG: CryptoRngCore + Send + Sync>(
         &self,
         message: &[u8],
         signable_ring: &SignableInputRing,
         output_blinding: Scalar,
-        rng: &mut dyn CryptoRngCore,
-    ) -> Result<RingMLSAG, Error>;
+        rng: RNG,
+    ) -> Result<RingMLSAG, Self::Error>;
 }
 
 // Implement RingSigner for any &RingSigner
-impl<S: RingSigner> RingSigner for &S {
-    fn sign(
+#[async_trait]
+impl<S: RingSigner + Send + Sync> RingSigner for &S {
+    type Error = <S as RingSigner>::Error;
+
+    async fn sign<RNG: CryptoRngCore + Send + Sync>(
         &self,
         message: &[u8],
         signable_ring: &SignableInputRing,
         output_blinding: Scalar,
-        rng: &mut dyn CryptoRngCore,
-    ) -> Result<RingMLSAG, Error> {
-        (*self).sign(message, signable_ring, output_blinding, rng)
+        rng: RNG,
+    ) -> Result<RingMLSAG, Self::Error> {
+        (*self).sign(message, signable_ring, output_blinding, rng).await
     }
 }
 
 /// An error that can occur when using an abstract RingSigner
 #[derive(Clone, Debug, Display, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum Error {
+pub enum SignerError {
     /// True input not owned by this subaddress
     TrueInputNotOwned,
     /// Connection failed: {0}
@@ -139,13 +153,13 @@ pub enum Error {
     NoPathToSpendKey,
 }
 
-impl From<KeyError> for Error {
+impl From<KeyError> for SignerError {
     fn from(src: KeyError) -> Self {
         Self::Keys(src)
     }
 }
 
-impl From<RingSignatureError> for Error {
+impl From<RingSignatureError> for SignerError {
     fn from(src: RingSignatureError) -> Self {
         Self::RingSignature(src)
     }

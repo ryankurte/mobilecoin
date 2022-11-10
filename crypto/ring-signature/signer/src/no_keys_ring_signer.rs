@@ -1,9 +1,14 @@
 // Copyright (c) 2018-2022 The MobileCoin Foundation
 
-use super::{Error, OneTimeKeyDeriveData, RingSigner, SignableInputRing};
+use alloc::boxed::Box;
+
+use async_trait::async_trait;
+use rand_core::CryptoRngCore;
+
 use mc_crypto_keys::RistrettoPublic;
 use mc_crypto_ring_signature::{generators, RingMLSAG, Scalar};
-use rand_core::CryptoRngCore;
+
+use super::{SignerError, OneTimeKeyDeriveData, RingSigner, SignableInputRing};
 
 /// An implementation of RingSigner that holds no keys, and doesn't do any
 /// non-trivial derivation of the one-time private key.
@@ -17,31 +22,34 @@ use rand_core::CryptoRngCore;
 #[derive(Clone, Debug)]
 pub struct NoKeysRingSigner {}
 
+#[async_trait]
 impl RingSigner for NoKeysRingSigner {
-    fn sign(
+    type Error = SignerError;
+
+    async fn sign<RNG: CryptoRngCore + Send + Sync>(
         &self,
         message: &[u8],
         ring: &SignableInputRing,
         pseudo_output_blinding: Scalar,
-        rng: &mut dyn CryptoRngCore,
-    ) -> Result<RingMLSAG, Error> {
+        mut rng: RNG,
+    ) -> Result<RingMLSAG, Self::Error> {
         let real_input = ring
             .members
             .get(ring.real_input_index)
-            .ok_or(Error::RealInputIndexOutOfBounds)?;
+            .ok_or(SignerError::RealInputIndexOutOfBounds)?;
         let target_key = RistrettoPublic::try_from(&real_input.target_key)?;
 
         // First, get the one-time private key
         let onetime_private_key = match ring.input_secret.onetime_key_derive_data {
             OneTimeKeyDeriveData::OneTimeKey(key) => key,
             OneTimeKeyDeriveData::SubaddressIndex(_) => {
-                return Err(Error::NoPathToSpendKey);
+                return Err(SignerError::NoPathToSpendKey);
             }
         };
 
         // Check if this is the correct one-time private key
         if RistrettoPublic::from(&onetime_private_key) != target_key {
-            return Err(Error::TrueInputNotOwned);
+            return Err(SignerError::TrueInputNotOwned);
         }
 
         // Note: Some implementations might be able to cache this generator
@@ -57,7 +65,7 @@ impl RingSigner for NoKeysRingSigner {
             &ring.input_secret.blinding,
             &pseudo_output_blinding,
             &generator,
-            rng,
+            &mut rng,
         )?)
     }
 }

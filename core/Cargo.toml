@@ -36,6 +36,7 @@ mc-crypto-keys = { path = "../crypto/keys", default-features = false }
 mc-crypto-memo-mac = { path = "../crypto/memo-mac", default-features = false }
 mc-crypto-ring-signature = { path = "../crypto/ring-signature", default-features = false }
 
+
 [dev-dependencies]
 
 anyhow = { version = "1.0.26" }

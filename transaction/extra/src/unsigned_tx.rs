@@ -9,7 +9,7 @@ use mc_transaction_core::{
     tx::{Tx, TxPrefix},
 };
 use mc_transaction_types::{Amount, BlockVersion, TokenId};
-use rand_core::{CryptoRng, RngCore};
+use rand_core::{CryptoRngCore};
 use serde::{Deserialize, Serialize};
 
 /// A structure containing an unsigned transaction, together with the data
@@ -37,7 +37,7 @@ pub struct UnsignedTx {
 
 impl UnsignedTx {
     /// Sign the transaction signing data with a given signer
-    pub fn sign<RNG: CryptoRng + RngCore, S: RingSigner + ?Sized>(
+    pub fn sign<RNG: CryptoRngCore + Send + Sync, S: RingSigner + ?Sized>(
         &self,
         signer: &S,
         rng: &mut RNG,
@@ -58,7 +58,7 @@ impl UnsignedTx {
     }
 
     /// Get extraneous signing data
-    pub fn get_signing_data<RNG: CryptoRng + RngCore>(
+    pub fn get_signing_data<RNG: CryptoRngCore + Send + Sync>(
         &self,
         rng: &mut RNG,
     ) -> Result<SigningData, RingCtError> {

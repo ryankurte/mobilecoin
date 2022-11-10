@@ -9,12 +9,17 @@
 extern crate alloc;
 
 use alloc::{collections::BTreeSet, vec, vec::Vec};
-use bulletproofs_og::RangeProof;
 use core::convert::TryFrom;
+
+use bulletproofs_og::RangeProof;
 use curve25519_dalek::{
     ristretto::{CompressedRistretto, RistrettoPoint},
     traits::Identity,
 };
+use rand_core::{CryptoRngCore};
+use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
+
 use mc_common::HashSet;
 use mc_crypto_digestible::{DigestTranscript, Digestible, MerlinTranscript};
 use mc_crypto_ring_signature::{
@@ -23,9 +28,6 @@ use mc_crypto_ring_signature::{
 use mc_crypto_ring_signature_signer::{RingSigner, SignableInputRing};
 use mc_util_serial::prost::Message;
 use mc_util_zip_exact::zip_exact;
-use rand_core::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
-use zeroize::Zeroize;
 
 use crate::{
     constants::FEE_BLINDING,
@@ -148,7 +150,7 @@ impl SigningData {
     /// * `check_value_is_preserved` - If true, check that the value of inputs
     ///   equals value of outputs.
     /// * `rng` - randomness
-    pub fn new<CSPRNG: RngCore + CryptoRng>(
+    pub fn new<CSPRNG: CryptoRngCore>(
         block_version: BlockVersion,
         message: &[u8; 32],
         rings: &[InputRing],
@@ -447,7 +449,7 @@ impl SignatureRctBulletproofs {
     ///   amount commitment.
     /// * `fee` - Value of the implicit fee output.
     /// * `token id` - This determines the pedersen generator for commitments
-    pub fn sign<CSPRNG: RngCore + CryptoRng, S: RingSigner + ?Sized>(
+    pub fn sign<CSPRNG: CryptoRngCore + Send + Sync, S: RingSigner + ?Sized>(
         block_version: BlockVersion,
         message: &[u8; 32],
         input_rings: &[InputRing],
@@ -477,7 +479,7 @@ impl SignatureRctBulletproofs {
     /// * `output_commitments` - Output amount commitments.
     /// * `fee` - Amount of the implicit fee output. commitment
     /// * `rng` - randomness
-    pub fn verify<CSPRNG: RngCore + CryptoRng>(
+    pub fn verify<CSPRNG: CryptoRngCore + Send + Sync>(
         &self,
         block_version: BlockVersion,
         message: &[u8; 32],
@@ -751,7 +753,7 @@ impl SignatureRctBulletproofs {
 /// * `check_value_is_preserved` - If true, check that the value of inputs
 ///   equals value of outputs.
 /// * `rng` - randomness
-fn sign_with_balance_check<CSPRNG: RngCore + CryptoRng, S: RingSigner + ?Sized>(
+async fn sign_with_balance_check<CSPRNG: CryptoRngCore + Send + Sync, S: RingSigner + ?Sized>(
     block_version: BlockVersion,
     message: &[u8; 32],
     rings: &[InputRing],
@@ -759,7 +761,7 @@ fn sign_with_balance_check<CSPRNG: RngCore + CryptoRng, S: RingSigner + ?Sized>(
     fee: Amount,
     check_value_is_preserved: bool,
     signer: &S,
-    rng: &mut CSPRNG,
+    mut rng: CSPRNG,
 ) -> Result<SignatureRctBulletproofs, Error> {
     let SigningData {
         extended_message_digest,
@@ -777,25 +779,22 @@ fn sign_with_balance_check<CSPRNG: RngCore + CryptoRng, S: RingSigner + ?Sized>(
         output_secrets,
         fee,
         check_value_is_preserved,
-        rng,
+        &mut rng,
     )?;
 
     // Prove that the signer is allowed to spend a public key in each ring, and that
     // the input's value equals the value of the pseudo_output.
-    let ring_signatures: Vec<RingMLSAG> = rings
-        .iter()
-        .zip(pseudo_output_blindings)
-        .map(
-            |(ring, pseudo_output_blinding)| -> Result<RingMLSAG, Error> {
-                Ok(match ring {
-                    InputRing::Signable(ring) => {
-                        signer.sign(&extended_message_digest, ring, pseudo_output_blinding, rng)?
-                    }
-                    InputRing::Presigned(ring) => ring.mlsag.clone(),
-                })
-            },
-        )
-        .collect::<Result<_, _>>()?;
+    let mut ring_signatures = Vec::with_capacity(rings.len());
+    for (ring, pseudo_output_blinding) in rings.iter().zip(pseudo_output_blindings) {
+        let r = match ring {
+            InputRing::Signable(ring) => {
+                // TODO: propagate error
+                signer.sign(&extended_message_digest, ring, pseudo_output_blinding, &mut rng).await.unwrap()
+            }
+            InputRing::Presigned(ring) => ring.mlsag.clone(),
+        };
+        ring_signatures.push(r);
+    }
 
     Ok(SignatureRctBulletproofs {
         ring_signatures,
@@ -821,7 +820,7 @@ fn sign_with_balance_check<CSPRNG: RngCore + CryptoRng, S: RingSigner + ?Sized>(
 ///
 /// Post-conditions:
 /// * The sum_of_output blindings - sum_of_pseudo_output blindings = 0
-fn compute_pseudo_output_blindings<CSPRNG: RngCore + CryptoRng>(
+fn compute_pseudo_output_blindings<CSPRNG: CryptoRngCore>(
     rings: &[InputRing],
     output_secrets: &[OutputSecret],
     rng: &mut CSPRNG,
@@ -991,7 +990,7 @@ mod rct_bulletproofs_tests {
             generators(*self.fee_token_id)
         }
 
-        fn random<RNG: RngCore + CryptoRng>(
+        fn random<RNG: CryptoRngCore>(
             block_version: BlockVersion,
             num_inputs: usize,
             num_mixins: usize,
@@ -1000,7 +999,7 @@ mod rct_bulletproofs_tests {
             Self::random_mixed(block_version, num_inputs, num_mixins, 1, rng)
         }
 
-        fn random_mixed<RNG: RngCore + CryptoRng>(
+        fn random_mixed<RNG: CryptoRngCore>(
             block_version: BlockVersion,
             num_inputs: usize,
             num_mixins: usize,
@@ -1126,7 +1125,7 @@ mod rct_bulletproofs_tests {
                 .collect()
         }
 
-        fn sign<RNG: RngCore + CryptoRng>(
+        fn sign<RNG: CryptoRngCore>(
             &self,
             fee: u64,
             rng: &mut RNG,
@@ -1142,7 +1141,7 @@ mod rct_bulletproofs_tests {
             )
         }
 
-        fn sign_without_balance_check<RNG: RngCore + CryptoRng>(
+        fn sign_without_balance_check<RNG: CryptoRngCore>(
             &self,
             fee: u64,
             rng: &mut RNG,

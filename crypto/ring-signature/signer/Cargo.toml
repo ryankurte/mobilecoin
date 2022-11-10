@@ -13,6 +13,7 @@ default = [ "serde", "alloc", "mc-crypto-dalek/default" ]
 
 [dependencies]
 # External dependencies
+async-trait = "0.1.58"
 displaydoc = { version = "0.2", default-features = false }
 generic-array = { version = "0.14", features = ["serde", "more_lengths"] }
 hex_fmt = "0.3"

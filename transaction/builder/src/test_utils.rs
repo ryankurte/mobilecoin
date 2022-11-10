@@ -18,7 +18,8 @@ use mc_transaction_core::{
     Amount, BlockVersion, MemoContext, MemoPayload, NewMemoError, Token, TokenId,
 };
 use mc_util_from_random::FromRandom;
-use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
+use rand::{rngs::StdRng, SeedableRng};
+use rand_core::CryptoRngCore;
 
 /// Creates a TxOut that sends `value` to `recipient`.
 ///
@@ -32,7 +33,7 @@ use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
 ///
 /// # Returns
 /// * A transaction output, and the shared secret for this TxOut.
-pub fn create_output<RNG: CryptoRng + RngCore, FPR: FogPubkeyResolver>(
+pub fn create_output<RNG: CryptoRngCore + Send + Sync, FPR: FogPubkeyResolver>(
     block_version: BlockVersion,
     amount: Amount,
     recipient: &PublicAddress,
@@ -63,7 +64,7 @@ pub fn create_output<RNG: CryptoRng + RngCore, FPR: FogPubkeyResolver>(
 /// * `rng` - Randomness.
 ///
 /// Returns (ring, real_index)
-pub fn get_ring<RNG: CryptoRng + RngCore, FPR: FogPubkeyResolver>(
+pub fn get_ring<RNG: CryptoRngCore + Send + Sync, FPR: FogPubkeyResolver>(
     block_version: BlockVersion,
     amount: Amount,
     ring_size: usize,
@@ -114,7 +115,7 @@ pub fn get_ring<RNG: CryptoRng + RngCore, FPR: FogPubkeyResolver>(
 /// * `rng` - Randomness.
 ///
 /// Returns (input_credentials)
-pub fn get_input_credentials<RNG: CryptoRng + RngCore, FPR: FogPubkeyResolver>(
+pub fn get_input_credentials<RNG: CryptoRngCore + Send + Sync, FPR: FogPubkeyResolver>(
     block_version: BlockVersion,
     amount: Amount,
     account: &AccountKey,
@@ -151,7 +152,7 @@ pub fn get_input_credentials<RNG: CryptoRng + RngCore, FPR: FogPubkeyResolver>(
 }
 
 /// Uses TransactionBuilder to build a generic transaction for testing.
-pub fn get_transaction<RNG: RngCore + CryptoRng, FPR: FogPubkeyResolver + Clone>(
+pub async fn get_transaction<RNG: CryptoRngCore + Send + Sync, FPR: FogPubkeyResolver + Clone>(
     block_version: BlockVersion,
     token_id: TokenId,
     num_inputs: usize,
@@ -201,7 +202,7 @@ pub fn get_transaction<RNG: RngCore + CryptoRng, FPR: FogPubkeyResolver + Clone>
     let fee = num_inputs as u64 * input_value - num_outputs as u64 * output_value;
     transaction_builder.set_fee(fee).unwrap();
 
-    transaction_builder.build(&NoKeysRingSigner {}, rng)
+    transaction_builder.build(&NoKeysRingSigner {}, rng).await
 }
 
 /// Build simulated change memo with amount

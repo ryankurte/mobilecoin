@@ -73,7 +73,7 @@ use mc_transaction_core::{
 // blocking
 use once_cell::race::OnceBox;
 use prost::Message;
-use rand_core::{CryptoRng, RngCore};
+use rand_core::{CryptoRng, CryptoRngCore, RngCore};
 
 /// Domain separator for unified fees transaction private key.
 pub const FEES_OUTPUT_PRIVATE_KEY_DOMAIN_TAG: &str = "mc_fees_output_private_key";
@@ -200,7 +200,7 @@ impl SgxConsensusEnclave {
     /// Given a list of well formed encrypted txs + proofs and a root membership
     /// element, decrypt and validate "original" Tx transactions, and if
     /// successful return the list of transactions.
-    fn get_txs_from_inputs(
+    fn get_txs_from_inputs<RNG: CryptoRngCore>(
         &self,
         well_formed_encrypted_txs_with_proofs: &[(
             WellFormedEncryptedTx,
@@ -210,7 +210,7 @@ impl SgxConsensusEnclave {
         root_element: &TxOutMembershipElement,
         config: &BlockchainConfig,
         ct_min_fees: &CtTokenMap<u64>,
-        rng: &mut (impl RngCore + CryptoRng),
+        mut rng: RNG,
     ) -> Result<Vec<Tx>> {
         // Short-circuit if there are no transactions.
         if well_formed_encrypted_txs_with_proofs.is_empty() {
@@ -249,7 +249,7 @@ impl SgxConsensusEnclave {
                 config.block_version,
                 proofs,
                 minimum_fee,
-                rng,
+                &mut rng,
             )?;
 
             for proof in proofs {

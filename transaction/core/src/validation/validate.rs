@@ -13,7 +13,7 @@ use crate::{
 };
 use alloc::{format, vec::Vec};
 use mc_common::HashSet;
-use rand_core::{CryptoRngCore};
+use rand_core::CryptoRngCore;
 
 /// Determines if the transaction is valid, with respect to the provided
 /// context.
@@ -28,13 +28,13 @@ use rand_core::{CryptoRngCore};
 /// * `minimum_fee` - The minimum fee for the token indicated by
 ///   tx.prefix.fee_token_id
 /// * `csprng` - Cryptographically secure random number generator.
-pub fn validate<R: CryptoRngCore + Send + Sync>(
+pub fn validate<R: CryptoRngCore>(
     tx: &Tx,
     current_block_index: u64,
     block_version: BlockVersion,
     root_proofs: &[TxOutMembershipProof],
     minimum_fee: u64,
-    csprng: &mut R,
+    mut csprng: R,
 ) -> TransactionValidationResult<()> {
     if BlockVersion::MAX < block_version {
         return Err(TransactionValidationError::Ledger(format!(
@@ -57,7 +57,7 @@ pub fn validate<R: CryptoRngCore + Send + Sync>(
 
     validate_membership_proofs(&tx.prefix, root_proofs)?;
 
-    validate_signature(block_version, tx, csprng)?;
+    validate_signature(block_version, tx, &mut csprng)?;
 
     validate_transaction_fee(tx, minimum_fee)?;
 
@@ -288,7 +288,7 @@ pub fn validate_masked_token_id_exists(tx_out: &TxOut) -> TransactionValidationR
 /// * The outputs have values in [0,2^64),
 /// * The transaction does not create or destroy mobilecoins.
 /// * The signature is valid according to the rules of this block version
-pub fn validate_signature<R: CryptoRngCore + Send + Sync>(
+pub fn validate_signature<R: CryptoRngCore>(
     block_version: BlockVersion,
     tx: &Tx,
     rng: &mut R,

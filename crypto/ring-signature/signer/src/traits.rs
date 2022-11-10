@@ -1,7 +1,7 @@
 // Copyright (c) 2018-2022 The MobileCoin Foundation
 
+use alloc::{boxed::Box, string::String, vec::Vec};
 use core::fmt::Debug;
-use alloc::{string::String, vec::Vec, boxed::Box};
 
 use async_trait::async_trait;
 use displaydoc::Display;
@@ -11,7 +11,6 @@ use zeroize::Zeroize;
 use mc_crypto_keys::{KeyError, RistrettoPrivate};
 use mc_crypto_ring_signature::{Error as RingSignatureError, ReducedTxOut, RingMLSAG, Scalar};
 use mc_transaction_types::Amount;
-
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -80,9 +79,9 @@ impl From<RistrettoPrivate> for OneTimeKeyDeriveData {
 #[async_trait]
 pub trait RingSigner {
     /// Error type returned on sign failures.
-    /// 
+    ///
     /// Must support casting to `SignerError` for higher-level error handling
-    type Error: TryInto<SignerError> + Debug;
+    type Error: Into<SignerError> + Debug;
 
     /// Create an MLSAG signature. This is a signature that confers spending
     /// authority of a TxOut.
@@ -131,7 +130,9 @@ impl<S: RingSigner + Send + Sync> RingSigner for &S {
         output_blinding: Scalar,
         rng: RNG,
     ) -> Result<RingMLSAG, Self::Error> {
-        (*self).sign(message, signable_ring, output_blinding, rng).await
+        (*self)
+            .sign(message, signable_ring, output_blinding, rng)
+            .await
     }
 }
 
@@ -151,6 +152,8 @@ pub enum SignerError {
     RingSignature(RingSignatureError),
     /// No path to spend key (logic error)
     NoPathToSpendKey,
+    /// Underlying driver error
+    Driver,
 }
 
 impl From<KeyError> for SignerError {

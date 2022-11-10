@@ -10,7 +10,7 @@ use crate::{
 use alloc::{boxed::Box, vec::Vec};
 use core::cmp::min;
 use mc_account_keys::PublicAddress;
-use mc_crypto_ring_signature_signer::{RingSigner, SignableInputRing};
+use mc_crypto_ring_signature_signer::{RingSigner, SignableInputRing, SignerError};
 use mc_fog_report_validation::FogPubkeyResolver;
 use mc_transaction_core::{
     ring_ct::OutputSecret,
@@ -20,7 +20,7 @@ use mc_transaction_core::{
     RevealedTxOut, TokenId,
 };
 use mc_transaction_extra::{SignedContingentInput, TxOutConfirmationNumber, UnmaskedAmount};
-use rand_core::{CryptoRngCore};
+use rand_core::CryptoRngCore;
 
 /// Helper utility for creating signed contingent inputs with required outputs,
 /// and attaching fog hint and memos as appropriate.
@@ -449,7 +449,7 @@ impl<FPR: FogPubkeyResolver> SignedContingentInputBuilder<FPR> {
     }
 
     /// Consume the builder and return the transaction.
-    pub fn build<RNG: CryptoRngCore + Send + Sync>(
+    pub async fn build<RNG: CryptoRngCore + Send + Sync>(
         mut self,
         ring_signer: &impl RingSigner,
         rng: &mut RNG,
@@ -510,14 +510,17 @@ impl<FPR: FogPubkeyResolver> SignedContingentInputBuilder<FPR> {
 
         let pseudo_output_blinding = Scalar::random(rng);
 
-        let mlsag = ring_signer.sign(
-            &tx_in
-                .signed_digest()
-                .expect("Tx in should contain rules, this is a logic error"),
-            &ring,
-            pseudo_output_blinding,
-            rng,
-        )?;
+        let mlsag = ring_signer
+            .sign(
+                &tx_in
+                    .signed_digest()
+                    .expect("Tx in should contain rules, this is a logic error"),
+                &ring,
+                pseudo_output_blinding,
+                rng,
+            )
+            .await
+            .map_err(|e| Into::<SignerError>::into(e))?;
 
         let pseudo_output_amount = UnmaskedAmount {
             value: ring.input_secret.amount.value,

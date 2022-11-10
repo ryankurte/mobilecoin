@@ -33,7 +33,7 @@ use mc_transaction_extra::{
     SignedContingentInput, SignedContingentInputError, TxOutConfirmationNumber, UnsignedTx,
 };
 use mc_util_from_random::FromRandom;
-use rand_core::{CryptoRngCore};
+use rand_core::CryptoRngCore;
 
 /// A trait used to compare the transaction outputs
 pub trait TxOutputsOrdering {
@@ -65,13 +65,23 @@ pub struct TxOutContext {
     pub shared_secret: RistrettoPublic,
 }
 
-/// [`Driver`] trait combines component traits for underlying cryptographic functions,
-/// supporting native execution or hardware offloading.
-pub trait Driver<E>: RingSigner<Error=E> + KeyImageComputer<Error=E> + MemoHmacSigner<Error=E> + MemoEncryptor<Error=E> {}
+/// [`Driver`] trait combines component traits for underlying cryptographic
+/// functions, supporting native execution or hardware offloading.
+pub trait Driver<E>:
+    RingSigner<Error = E>
+    + KeyImageComputer<Error = E>
+    + MemoHmacSigner<Error = E>
+    + MemoEncryptor<Error = E>
+{
+}
 
-impl <T, E> Driver<E> for T where
-    T: RingSigner<Error=E> + KeyImageComputer<Error=E> + MemoHmacSigner<Error=E> + MemoEncryptor<Error=E>,
-{}
+impl<T, E> Driver<E> for T where
+    T: RingSigner<Error = E>
+        + KeyImageComputer<Error = E>
+        + MemoHmacSigner<Error = E>
+        + MemoEncryptor<Error = E>
+{
+}
 
 /// Helper utility for building and signing a CryptoNote-style transaction,
 /// and attaching fog hint and memos as appropriate.
@@ -788,18 +798,19 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
     }
 
     /// Consume the builder and return the transaction.
-    pub fn build<RNG: CryptoRngCore + Send + Sync, S: RingSigner + ?Sized>(
+    pub async fn build<RNG: CryptoRngCore + Send + Sync, S: RingSigner + ?Sized>(
         self,
         ring_signer: &S,
         rng: &mut RNG,
     ) -> Result<Tx, TxBuilderError> {
         self.build_with_comparer_internal::<RNG, DefaultTxOutputsOrdering, S>(ring_signer, rng)
+            .await
     }
 
     /// Consume the builder and return the transaction with a comparer.
     /// Used only in testing library.
     #[cfg(feature = "test-only")]
-    pub fn build_with_sorter<
+    pub async fn build_with_sorter<
         RNG: CryptoRngCore + Send + Sync,
         O: TxOutputsOrdering,
         S: RingSigner + ?Sized,
@@ -809,11 +820,12 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
         rng: &mut RNG,
     ) -> Result<Tx, TxBuilderError> {
         self.build_with_comparer_internal::<RNG, O, S>(ring_signer, rng)
+            .await
     }
 
     /// Consume the builder and return the transaction with a comparer
     /// (internal usage only).
-    fn build_with_comparer_internal<
+    async fn build_with_comparer_internal<
         RNG: CryptoRngCore + Send + Sync,
         O: TxOutputsOrdering,
         S: RingSigner + ?Sized,
@@ -823,7 +835,7 @@ impl<FPR: FogPubkeyResolver> TransactionBuilder<FPR> {
         rng: &mut RNG,
     ) -> Result<Tx, TxBuilderError> {
         let unsigned_tx = self.build_unsigned::<RNG, O>()?;
-        Ok(unsigned_tx.sign(ring_signer, rng)?)
+        Ok(unsigned_tx.sign(ring_signer, rng).await?)
     }
 }
 

@@ -16,7 +16,7 @@ use curve25519_dalek::{
     ristretto::{CompressedRistretto, RistrettoPoint},
     traits::Identity,
 };
-use rand_core::{CryptoRngCore};
+use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
@@ -157,7 +157,7 @@ impl SigningData {
         output_secrets: &[OutputSecret],
         fee: Amount,
         check_value_is_preserved: bool,
-        rng: &mut CSPRNG,
+        mut rng: CSPRNG,
     ) -> Result<Self, Error> {
         if !block_version.masked_token_id_feature_is_supported() && fee.token_id != 0 {
             return Err(Error::TokenIdNotAllowed);
@@ -228,7 +228,8 @@ impl SigningData {
         // chosen so that the sum of all blinding factors is zero.
         // For pre-signed rings, we cannot change blinding, so we have to use what was
         // signed.
-        let pseudo_output_blindings = compute_pseudo_output_blindings(rings, output_secrets, rng)?;
+        let pseudo_output_blindings =
+            compute_pseudo_output_blindings(rings, output_secrets, &mut rng)?;
 
         // Create Range proofs for outputs and pseudo-outputs.
         let pseudo_output_values_and_blindings: Vec<(u64, Scalar)> = rings
@@ -256,7 +257,7 @@ impl SigningData {
                 )
                 .unzip();
             let (range_proof, _commitments) =
-                generate_range_proofs(&values, &blindings, generator, rng)?;
+                generate_range_proofs(&values, &blindings, generator, &mut rng)?;
 
             (range_proof.to_bytes().to_vec(), vec![])
         } else {
@@ -302,7 +303,7 @@ impl SigningData {
                 }
 
                 let (range_proof, _commitments) =
-                    generate_range_proofs(&values, &blindings, generator, rng)?;
+                    generate_range_proofs(&values, &blindings, generator, &mut rng)?;
 
                 range_proofs.push(range_proof.to_bytes());
             }
@@ -449,14 +450,14 @@ impl SignatureRctBulletproofs {
     ///   amount commitment.
     /// * `fee` - Value of the implicit fee output.
     /// * `token id` - This determines the pedersen generator for commitments
-    pub fn sign<CSPRNG: CryptoRngCore + Send + Sync, S: RingSigner + ?Sized>(
+    pub async fn sign<CSPRNG: CryptoRngCore + Send + Sync, S: RingSigner + ?Sized>(
         block_version: BlockVersion,
         message: &[u8; 32],
         input_rings: &[InputRing],
         output_secrets: &[OutputSecret],
         fee: Amount,
         signer: &S,
-        rng: &mut CSPRNG,
+        rng: CSPRNG,
     ) -> Result<Self, Error> {
         sign_with_balance_check(
             block_version,
@@ -468,6 +469,7 @@ impl SignatureRctBulletproofs {
             signer,
             rng,
         )
+        .await
     }
 
     /// Verify.
@@ -479,7 +481,7 @@ impl SignatureRctBulletproofs {
     /// * `output_commitments` - Output amount commitments.
     /// * `fee` - Amount of the implicit fee output. commitment
     /// * `rng` - randomness
-    pub fn verify<CSPRNG: CryptoRngCore + Send + Sync>(
+    pub fn verify<CSPRNG: CryptoRngCore>(
         &self,
         block_version: BlockVersion,
         message: &[u8; 32],
@@ -789,7 +791,15 @@ async fn sign_with_balance_check<CSPRNG: CryptoRngCore + Send + Sync, S: RingSig
         let r = match ring {
             InputRing::Signable(ring) => {
                 // TODO: propagate error
-                signer.sign(&extended_message_digest, ring, pseudo_output_blinding, &mut rng).await.unwrap()
+                signer
+                    .sign(
+                        &extended_message_digest,
+                        ring,
+                        pseudo_output_blinding,
+                        &mut rng,
+                    )
+                    .await
+                    .unwrap()
             }
             InputRing::Presigned(ring) => ring.mlsag.clone(),
         };

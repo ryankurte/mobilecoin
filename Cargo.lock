@@ -2522,7 +2522,7 @@ name = "mc-attest-ake"
 version = "4.0.0-pre0"
 dependencies = [
  "aead 0.4.3",
- "aes-gcm 0.9.4",
+ "aes-gcm 0.10.1",
  "cargo-emit",
  "digest 0.10.5",
  "displaydoc",
@@ -2790,7 +2790,7 @@ dependencies = [
 name = "mc-connection"
 version = "4.0.0-pre0"
 dependencies = [
- "aes-gcm 0.9.4",
+ "aes-gcm 0.10.1",
  "cookie",
  "displaydoc",
  "grpcio",
@@ -2854,7 +2854,7 @@ dependencies = [
 name = "mc-consensus-enclave"
 version = "4.0.0-pre0"
 dependencies = [
- "aes-gcm 0.9.4",
+ "aes-gcm 0.10.1",
  "cargo-emit",
  "lazy_static",
  "mc-attest-ake",
@@ -3398,7 +3398,7 @@ dependencies = [
 name = "mc-crypto-message-cipher"
 version = "4.0.0-pre0"
 dependencies = [
- "aes-gcm 0.9.4",
+ "aes-gcm 0.10.1",
  "displaydoc",
  "generic-array",
  "mc-util-serial",
@@ -3427,7 +3427,7 @@ name = "mc-crypto-noise"
 version = "4.0.0-pre0"
 dependencies = [
  "aead 0.4.3",
- "aes-gcm 0.9.4",
+ "aes-gcm 0.10.1",
  "digest 0.10.5",
  "displaydoc",
  "generic-array",
@@ -3613,7 +3613,7 @@ dependencies = [
 name = "mc-fog-enclave-connection"
 version = "4.0.0-pre0"
 dependencies = [
- "aes-gcm 0.9.4",
+ "aes-gcm 0.10.1",
  "cookie",
  "displaydoc",
  "grpcio",
@@ -4915,7 +4915,7 @@ dependencies = [
 name = "mc-mobilecoind"
 version = "4.0.0-pre0"
 dependencies = [
- "aes-gcm 0.9.4",
+ "aes-gcm 0.10.1",
  "clap 4.0.29",
  "crossbeam-channel",
  "displaydoc",

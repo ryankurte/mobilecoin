@@ -1794,7 +1794,7 @@ dependencies = [
  "libc",
  "log",
  "parking_lot 0.11.2",
- "protobuf",
+ "protobuf 2.28.0",
 ]
 
 [[package]]
@@ -1803,7 +1803,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1f1abac9f330ac9ee0950220c10eea84d66479cede4836f0b924407fecf093c"
 dependencies = [
- "protobuf",
+ "protobuf 2.28.0",
 ]
 
 [[package]]
@@ -2511,7 +2511,7 @@ dependencies = [
  "mc-watcher-api",
  "pem",
  "prost",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "rand_hc 0.3.1",
@@ -2557,7 +2557,7 @@ dependencies = [
  "mc-crypto-noise",
  "mc-util-build-grpc",
  "mc-util-build-script",
- "protobuf",
+ "protobuf 3.2.0",
 ]
 
 [[package]]
@@ -2845,7 +2845,7 @@ dependencies = [
  "mc-util-build-grpc",
  "mc-util-build-script",
  "mc-util-serial",
- "protobuf",
+ "protobuf 3.2.0",
  "rand_core 0.6.4",
  "rand_hc 0.3.1",
 ]
@@ -3021,7 +3021,7 @@ dependencies = [
  "mc-util-parse",
  "mc-util-uri",
  "pem",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -3146,7 +3146,7 @@ dependencies = [
  "mc-util-uri",
  "mockall",
  "once_cell",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "rand_hc 0.3.1",
@@ -3572,7 +3572,7 @@ dependencies = [
  "mc-util-test-helper",
  "mc-watcher-api",
  "prost",
- "protobuf",
+ "protobuf 3.2.0",
 ]
 
 [[package]]
@@ -3665,7 +3665,7 @@ dependencies = [
  "mc-util-uri",
  "mc-watcher",
  "predicates",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "retry",
  "serde_json",
@@ -3838,7 +3838,7 @@ dependencies = [
  "mc-util-uri",
  "mc-watcher",
  "mc-watcher-api",
- "protobuf",
+ "protobuf 3.2.0",
  "rand_core 0.6.4",
  "rand_hc 0.3.1",
  "retry",
@@ -3907,7 +3907,7 @@ dependencies = [
  "mc-transaction-core",
  "mc-util-grpc",
  "mc-util-uri",
- "protobuf",
+ "protobuf 3.2.0",
  "retry",
 ]
 
@@ -4216,7 +4216,7 @@ dependencies = [
  "mc-util-build-grpc",
  "mc-util-build-script",
  "prost",
- "protobuf",
+ "protobuf 3.2.0",
 ]
 
 [[package]]
@@ -4225,7 +4225,7 @@ version = "4.0.0-pre0"
 dependencies = [
  "mc-util-serial",
  "prost",
- "protobuf",
+ "protobuf 2.28.0",
 ]
 
 [[package]]
@@ -4398,7 +4398,7 @@ dependencies = [
  "mc-util-telemetry",
  "mc-util-test-helper",
  "mc-util-uri",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "serde_json",
 ]
@@ -4843,7 +4843,7 @@ dependencies = [
  "mc-ledger-db",
  "mc-transaction-core",
  "mc-util-telemetry",
- "protobuf",
+ "protobuf 3.2.0",
  "retry",
  "rusoto_core",
  "rusoto_s3",
@@ -4902,7 +4902,7 @@ dependencies = [
  "mc-util-test-helper",
  "mc-util-uri",
  "mockall",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "reqwest",
  "retry",
@@ -4969,7 +4969,7 @@ dependencies = [
  "pem",
  "portpicker",
  "prost",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -4996,7 +4996,7 @@ dependencies = [
  "mc-util-build-grpc",
  "mc-util-build-script",
  "mc-util-uri",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
 ]
 
@@ -5050,7 +5050,7 @@ dependencies = [
  "mc-util-from-random",
  "mc-util-grpc",
  "mc-util-serial",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "rocket",
  "serde",
@@ -5135,7 +5135,7 @@ dependencies = [
  "mc-util-serial",
  "mc-util-uri",
  "mockall",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "rand_hc 0.3.1",
  "retry",
@@ -5642,7 +5642,7 @@ dependencies = [
  "mc-util-serial",
  "mc-util-uri",
  "prometheus",
- "protobuf",
+ "protobuf 3.2.0",
  "rand 0.8.5",
  "retry",
  "serde",
@@ -5744,7 +5744,7 @@ dependencies = [
  "lazy_static",
  "mc-common",
  "prometheus",
- "protobuf",
+ "protobuf 3.2.0",
  "serde_json",
 ]
 
@@ -5786,7 +5786,7 @@ name = "mc-util-serial"
 version = "4.0.0-pre0"
 dependencies = [
  "prost",
- "protobuf",
+ "protobuf 2.28.0",
  "serde",
  "serde_cbor",
  "serde_json",
@@ -6704,7 +6704,7 @@ dependencies = [
  "lazy_static",
  "memchr",
  "parking_lot 0.12.0",
- "protobuf",
+ "protobuf 2.28.0",
  "thiserror",
 ]
 
@@ -6753,17 +6753,37 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.27.1"
+version = "2.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf7e6d18738ecd0902d30d1ad232c9125985a3422929b16c65517b38adc14f96"
+checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
+
+[[package]]
+name = "protobuf"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b55bad9126f378a853655831eb7363b7b01b81d19f8cb1218861086ca4a1a61e"
+dependencies = [
+ "once_cell",
+ "protobuf-support",
+ "thiserror",
+]
 
 [[package]]
 name = "protobuf-codegen"
-version = "2.27.1"
+version = "2.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aec1632b7c8f2e620343439a7dfd1f3c47b18906c4be58982079911482b5d707"
+checksum = "033460afb75cf755fcfc16dfaed20b86468082a2ea24e05ac35ab4a099a017d6"
 dependencies = [
- "protobuf",
+ "protobuf 2.28.0",
+]
+
+[[package]]
+name = "protobuf-support"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5d4d7b8601c814cfb36bcebb79f0e61e45e1e93640cf778837833bbed05c372"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
@@ -6784,7 +6804,7 @@ checksum = "980d0ed845138df84f72beb72faf6d726c70c99d0debb2b5e1e7dee61f853df7"
 dependencies = [
  "failure",
  "grpcio-compiler",
- "protobuf",
+ "protobuf 2.28.0",
  "protobuf-codegen",
  "protoc",
  "tempfile",

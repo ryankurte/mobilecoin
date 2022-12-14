@@ -10,6 +10,7 @@
 mod amount;
 mod block_version;
 mod token;
+pub mod domain_separators;
 
 pub use crate::{
     amount::Amount,

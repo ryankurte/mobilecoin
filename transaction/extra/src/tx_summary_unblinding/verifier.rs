@@ -15,15 +15,27 @@ use super::{
     TxSummaryUnblindingReport,
 };
 use crate::UnmaskedAmount;
-use mc_account_keys::{PublicAddress, ShortAddressHash};
+
+// TODO(@ryan): swap to mc_core account key types..?
+use mc_account_keys::{ShortAddressHash};
+
+use mc_core::account::RingCtAddress;
 use mc_crypto_digestible::{DigestTranscript, Digestible, MerlinTranscript};
 use mc_crypto_keys::{RistrettoPrivate, RistrettoPublic};
-use mc_crypto_ring_signature::onetime_keys::{
-    create_shared_secret, create_tx_out_public_key, create_tx_out_target_key,
+use mc_crypto_ring_signature::{
+    CompressedCommitment,
+    onetime_keys::{
+        create_shared_secret, create_tx_out_public_key, create_tx_out_target_key,
+    },
 };
+use mc_transaction_types::{
+    Amount, BlockVersion,
+    domain_separators::EXTENDED_MESSAGE_AND_TX_SUMMARY_DOMAIN_TAG,
+};
+// TODO(@ryan): move types to mitigate mc_transaction_core alloc requirements
 use mc_transaction_core::{
-    domain_separators::EXTENDED_MESSAGE_AND_TX_SUMMARY_DOMAIN_TAG, Amount, AmountError,
-    BlockVersion, CompressedCommitment, MaskedAmount, TxInSummary, TxOutSummary, TxSummary,
+    AmountError, MaskedAmount,
+    TxInSummary, TxOutSummary, TxSummary,
 };
 use mc_util_zip_exact::zip_exact;
 
@@ -367,13 +379,13 @@ impl TxSummaryStreamingVerifier {
     fn expected_tx_out_summary(
         block_version: BlockVersion,
         amount: Amount,
-        recipient: &PublicAddress,
+        recipient: &impl RingCtAddress,
         tx_private_key: &RistrettoPrivate,
     ) -> Result<TxOutSummary, Error> {
         let target_key = create_tx_out_target_key(tx_private_key, recipient).into();
-        let public_key = create_tx_out_public_key(tx_private_key, recipient.spend_public_key());
+        let public_key = create_tx_out_public_key(tx_private_key, recipient.spend_public_key().as_ref());
 
-        let shared_secret = create_shared_secret(recipient.view_public_key(), tx_private_key);
+        let shared_secret = create_shared_secret(recipient.view_public_key().as_ref(), tx_private_key);
 
         let masked_amount = Some(MaskedAmount::new(block_version, amount, &shared_secret)?);
 

@@ -7,8 +7,10 @@ description = "MobileCoin Core Types"
 readme = "README.md"
 
 [features]
-serde = ["dep:serde"]
+serde = ["dep:serde", "mc-crypto-keys/serde"]
 prost = ["dep:prost", "mc-crypto-keys/prost" ]
+alloc = ["mc-crypto-keys/alloc"]
+default = ["serde", "prost"]
 
 [dependencies]
 # External dependencies

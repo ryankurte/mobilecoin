@@ -11,6 +11,7 @@ mod amount;
 mod block_version;
 mod token;
 pub mod domain_separators;
+pub mod tx_summary;
 
 pub use crate::{
     amount::Amount,

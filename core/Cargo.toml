@@ -40,7 +40,7 @@ mc-util-test-vector = { path = "../util/test-vector" }
 mc-util-test-with-data = { path = "../util/test-with-data" }
 
 serde = { version = "1.0.0", features = [ "derive" ] }
-serde_json = { version = "1.0.85" }
+serde_json = { version = "1.0.92" }
 
 [build-dependencies]
 anyhow = { version = "1.0.66" }

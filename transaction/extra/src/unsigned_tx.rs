@@ -1,6 +1,5 @@
 // Copyright (c) 2018-2022 The MobileCoin Foundation
 
-use crate::{TxOutSummaryUnblindingData, TxSummaryUnblindingData};
 use alloc::vec::Vec;
 use mc_crypto_ring_signature_signer::RingSigner;
 use mc_transaction_core::{
@@ -11,7 +10,9 @@ use mc_transaction_core::{
     tx::{Tx, TxPrefix},
     FeeMap,
 };
+use mc_transaction_summary::{TxOutSummaryUnblindingData, TxSummaryUnblindingData};
 use mc_transaction_types::{Amount, BlockVersion, TokenId, TxSummary, UnmaskedAmount};
+
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 

@@ -9,32 +9,31 @@ readme = "README.md"
 std = ["prost?/std"]
 serde = [
     "dep:serde",
-    "mc-account-keys/serde",
+    "mc-account-keys?/serde",
     "mc-crypto-keys/serde",
     "mc-crypto-ring-signature/serde",
     "mc-transaction-types/serde",
+    "mc-util-zip-exact/serde",
 ]
 prost = [
     "dep:prost",
-    "mc-account-keys/prost",
     "mc-crypto-keys/prost",
     "mc-crypto-ring-signature/prost",
     "mc-transaction-types/prost",
 ]
 alloc = [
-    "serde?/alloc",
-    #"mc-crypto-keys/alloc",
     "mc-transaction-types/alloc",
+    "serde?/alloc",
 ]
 
-default = ["std", "alloc", "serde", "prost", "mc-crypto-dalek/default"]
+default = ["std", "alloc", "serde", "prost", "mc-account-keys", "mc-crypto-dalek/default"]
 
 [dependencies]
 # External dependencies
 displaydoc = { version = "0.2", default-features = false }
 
 # MobileCoin dependencies
-mc-account-keys = { path = "../../account-keys", default-features = false }
+mc-account-keys = { path = "../../account-keys", optional = true, default-features = false }
 mc-core = { path = "../../core", default-features = false }
 mc-crypto-dalek = { path = "../../crypto/dalek", default-features = false }
 mc-crypto-digestible = { path = "../../crypto/digestible", default-features = false, features = ["dalek", "derive"] }

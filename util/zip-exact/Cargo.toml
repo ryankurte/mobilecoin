@@ -7,5 +7,9 @@ description = "An iterator helper"
 license = "Apache-2.0"
 readme = "README.md"
 
+[features]
+serde = [ "dep:serde" ]
+default = [ "serde" ]
+
 [dependencies]
-serde = { version = "1.0", default-features = false }
+serde = { version = "1.0", optional = true, default-features = false }

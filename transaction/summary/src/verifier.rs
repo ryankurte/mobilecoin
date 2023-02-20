@@ -11,8 +11,7 @@
 //! approximately 300 bytes + Fog url length
 
 use super::{
-    report::MAX_RECORDS, Error, TransactionEntity, TxOutSummaryUnblindingData,
-    TxSummaryUnblindingData, TxSummaryUnblindingReport,
+    report::MAX_RECORDS, Error, TransactionEntity, TxSummaryUnblindingReport,
 };
 use mc_core::account::{RingCtAddress, ShortAddressHash};
 use mc_crypto_digestible::{DigestTranscript, Digestible, MerlinTranscript};
@@ -23,79 +22,9 @@ use mc_crypto_ring_signature::{
 };
 use mc_transaction_types::{
     domain_separators::EXTENDED_MESSAGE_AND_TX_SUMMARY_DOMAIN_TAG, Amount, AmountError,
-    BlockVersion, MaskedAmount, TxInSummary, TxOutSummary, TxSummary, UnmaskedAmount,
+    BlockVersion, MaskedAmount, TxInSummary, TxOutSummary, UnmaskedAmount,
 };
-use mc_util_zip_exact::zip_exact;
 
-/// Exercise the functionality of the streaming verifier, and return its
-/// results.
-///
-/// This is mainly useful for testing / demonstration purposes, since the more
-/// interesting use-case is when the streaming verifier is on a small remote
-/// device and doesn't have the full TxSummary or TxSummaryUnblindingData on
-/// hand.
-pub fn verify_tx_summary(
-    extended_message_digest: &[u8; 32],
-    tx_summary: &TxSummary,
-    unblinding_data: &TxSummaryUnblindingData,
-    view_private_key: RistrettoPrivate,
-) -> Result<([u8; 32], TxSummaryUnblindingReport), Error> {
-    let mut verifier = TxSummaryStreamingVerifier::new(
-        extended_message_digest,
-        unblinding_data.block_version.try_into()?,
-        tx_summary.outputs.len(),
-        tx_summary.inputs.len(),
-        view_private_key,
-    );
-    for (tx_out_summary, tx_out_unblinding_data) in
-        zip_exact(tx_summary.outputs.iter(), unblinding_data.outputs.iter())?
-    {
-        let TxOutSummaryUnblindingData {
-            unmasked_amount,
-            address,
-            tx_private_key,
-        } = tx_out_unblinding_data;
-        let address = address.as_ref().map(|v| (ShortAddressHash::from(v), v));
-
-        verifier.digest_output(
-            tx_out_summary,
-            unmasked_amount,
-            address,
-            tx_private_key.as_ref(),
-        )?;
-    }
-    for (tx_in_summary, tx_in_unblinding_data) in
-        zip_exact(tx_summary.inputs.iter(), unblinding_data.inputs.iter())?
-    {
-        verifier.digest_input(tx_in_summary, tx_in_unblinding_data)?;
-    }
-    let (digest, report) = verifier.finalize(
-        Amount::new(tx_summary.fee, tx_summary.fee_token_id.into()),
-        tx_summary.tombstone_block,
-    );
-
-    // In a debug build, confirm the digest by computing it in a non-streaming way
-    //
-    // Note: this needs to be kept in sync with the compute_mlsag_signing_digest
-    // function in transaction_core::ring_ct::rct_bulletproofs
-    #[cfg(debug)]
-    {
-        let mut transcript =
-            MerlinTranscript::new(EXTENDED_MESSAGE_AND_TX_SUMMARY_DOMAIN_TAG.as_bytes());
-        extended_message.append_to_transcript(b"extended_message", &mut transcript);
-        tx_summary.append_to_transcript(b"tx_summary", &mut transcript);
-
-        // Extract digest
-        let mut output = [0u8; 32];
-        transcript.extract_digest(&mut output);
-
-        assert_eq!(
-            output, digest,
-            "streaming verifier did not compute correct digest"
-        );
-    }
-    Ok((digest, report))
-}
 
 /// An object intended for hardware wallets to use, with a dual purpose.
 ///

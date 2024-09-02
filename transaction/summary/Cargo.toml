@@ -28,7 +28,7 @@ default = ["std", "serde", "prost", "mc-account-keys"]
 [dependencies]
 # External dependencies
 displaydoc = { version = "0.2", default-features = false }
-heapless = { version = "0.7.16", default-features = false }
+heapless = { version = "0.8.0", default-features = false }
 
 # MobileCoin dependencies
 mc-account-keys = { path = "../../account-keys", optional = true, default-features = false }
